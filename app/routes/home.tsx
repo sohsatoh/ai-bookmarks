@@ -174,60 +174,77 @@ export async function action({ request, context }: Route.ActionArgs) {
   }
 
   try {
-    // 1. ページメタデータ取得
+    // 1. ページメタデータ取得（高速）
     const { title, description, content } = await fetchPageMetadata(url);
 
-    // 2. 既存カテゴリ取得
-    const existingCategories = await getExistingCategories(db);
+    // 2. バックグラウンドでAI処理とDB保存を実行
+    context.cloudflare.ctx.waitUntil(
+      (async () => {
+        try {
+          console.log("[Background] Starting AI processing for:", url);
+          
+          // 既存カテゴリ取得
+          const existingCategories = await getExistingCategories(db);
 
-    // 3. AIでメタデータ生成（同期実行）
-    const metadata = await generateBookmarkMetadata(
-      context.cloudflare.env.AI,
-      url,
-      title,
-      description,
-      content,
-      existingCategories
+          // AIでメタデータ生成
+          const metadata = await generateBookmarkMetadata(
+            context.cloudflare.env.AI,
+            url,
+            title,
+            description,
+            content,
+            existingCategories
+          );
+
+          console.log("[Background] AI processing completed, saving to DB");
+
+          // カテゴリを取得または作成
+          const majorCategoryId = await getOrCreateCategory(
+            db,
+            metadata.majorCategory,
+            "major"
+          );
+          const minorCategoryId = await getOrCreateCategory(
+            db,
+            metadata.minorCategory,
+            "minor",
+            majorCategoryId
+          );
+
+          // ブックマーク作成
+          await createBookmark(db, {
+            url: url,
+            title,
+            description: metadata.description,
+            majorCategoryId,
+            minorCategoryId,
+          });
+
+          console.log("[Background] Bookmark saved successfully");
+        } catch (error) {
+          console.error("[Background] Failed to process bookmark:", error);
+        }
+      })()
     );
 
-    // 4. カテゴリを取得または作成
-    const majorCategoryId = await getOrCreateCategory(
-      db,
-      metadata.majorCategory,
-      "major"
-    );
-    const minorCategoryId = await getOrCreateCategory(
-      db,
-      metadata.minorCategory,
-      "minor",
-      majorCategoryId
-    );
-
-    // 5. ブックマーク作成
-    await createBookmark(db, {
-      url: url,
-      title,
-      description: metadata.description,
-      majorCategoryId,
-      minorCategoryId,
-    });
-
+    // 3. すぐにレスポンスを返す（処理中状態）
     return {
       success: true,
+      processing: true,
       toast: {
-        type: "success" as const,
-        title: "追加完了",
-        message: title,
+        type: "info" as const,
+        title: "処理中",
+        message: `${title} を追加しています...`,
       },
     };
   } catch (error) {
-    console.error("Failed to create bookmark:", error);
+    console.error("Failed to fetch page metadata:", error);
     return {
-      error: error instanceof Error ? error.message : "ブックマークの作成に失敗しました",
+      error: error instanceof Error ? error.message : "ページ情報の取得に失敗しました",
       toast: {
         type: "error" as const,
         title: "エラー",
-        message: error instanceof Error ? error.message : "ブックマークの作成に失敗しました",
+        message: error instanceof Error ? error.message : "ページ情報の取得に失敗しました",
       },
     };
   }
@@ -244,53 +261,26 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
   
   const currentSortBy = loaderData.sortBy;
   const currentSortOrder = loaderData.sortOrder;
-  
-  // AI処理中のブックマークを検出（未分類カテゴリで直近5分以内）
-  const processingBookmarks = loaderData.bookmarksByCategory
-    .flatMap(major => major.minorCategories.flatMap(minor => minor.bookmarks))
-    .filter(bookmark => {
-      const isRecent = Date.now() - new Date(bookmark.createdAt).getTime() < 5 * 60 * 1000; // 5分以内
-      const isUncategorized = bookmark.majorCategory.name === "未分類";
-      return isRecent && isUncategorized;
-    });
+  const [processingCount, setProcessingCount] = useState(0);
   
   // 処理中のブックマークがある場合、定期的にリフレッシュ
   useEffect(() => {
-    if (processingBookmarks.length > 0) {
+    if (processingCount > 0) {
       const interval = setInterval(() => {
         revalidator.revalidate();
-      }, 3000); // 3秒ごとにリフレッシュ
+      }, 5000); // 5秒ごとにリフレッシュ
       
       return () => clearInterval(interval);
     }
-  }, [processingBookmarks.length, revalidator]);
-  
-  // 送信開始時にトースト表示
-  useEffect(() => {
-    if (isSubmitting && formRef.current) {
-      const urlInput = formRef.current.elements.namedItem("url") as HTMLInputElement;
-      if (urlInput?.value) {
-        const toastId = Date.now().toString();
-        setToasts(prev => [...prev, {
-          id: toastId,
-          type: "info",
-          title: "処理中",
-          message: urlInput.value,
-        }]);
-      }
-    }
-  }, [isSubmitting]);
+  }, [processingCount, revalidator]);
   
   // 新しく追加されたブックマークのアニメーションとトースト
   useEffect(() => {
     if (actionData && !isSubmitting) {
-      // フォームをクリア
+      // フォームをクリア（すぐに次の入力が可能）
       if (formRef.current) {
         formRef.current.reset();
       }
-      
-      // 処理中トーストを削除
-      setToasts(prev => prev.filter(t => t.type !== "info"));
       
       // 結果トーストを表示
       if (actionData.toast) {
@@ -302,22 +292,18 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
       }
       
       if (actionData.success) {
-        // 成功後にリフレッシュして最新のブックマークを取得
-        revalidator.revalidate();
-        
-        // 最新のブックマークをjustAddedに追加（最初の1件）
-        const allBookmarks = loaderData.bookmarksByCategory
-          .flatMap(major => major.minorCategories.flatMap(minor => minor.bookmarks));
-        if (allBookmarks.length > 0) {
-          const newestBookmark = allBookmarks.sort((a, b) => 
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          )[0];
-          setJustAdded(prev => [...prev, newestBookmark.id]);
+        // 処理中の場合、カウントを増やして定期リフレッシュを開始
+        if (actionData.processing) {
+          setProcessingCount(prev => prev + 1);
           
-          // 3秒後にアニメーションを解除
+          // 30秒後に処理完了と見なして定期リフレッシュを停止
           setTimeout(() => {
-            setJustAdded(prev => prev.filter(id => id !== newestBookmark.id));
-          }, 3000);
+            setProcessingCount(prev => Math.max(0, prev - 1));
+            revalidator.revalidate();
+          }, 30000);
+        } else {
+          // 即座に完了した場合
+          revalidator.revalidate();
         }
       }
     }
@@ -503,27 +489,11 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
 
                     <div className="grid gap-3 sm:grid-cols-1">
                       {minor.bookmarks.map((bookmark) => {
-                        const isProcessing = processingBookmarks.some(b => b.id === bookmark.id);
-                        const isNewlyAdded = justAdded.includes(bookmark.id);
-                        
                         return (
                         <div
                           key={bookmark.id}
-                          className={`bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 p-6 group ${
-                            isNewlyAdded ? 'animate-fade-in scale-100' : ''
-                          } ${
-                            isProcessing ? 'ring-2 ring-blue-500' : ''
-                          }`}
+                          className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 p-6 group"
                         >
-                          {isProcessing && (
-                            <div className="flex items-center gap-2 mb-4 text-blue-600 dark:text-blue-400 text-sm">
-                              <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                              </svg>
-                              <span>カテゴリを分析中</span>
-                            </div>
-                          )}
                           <div className="flex items-start justify-between gap-6">
                             <div className="flex-1 min-w-0 flex gap-4">
                               {/* Favicon */}

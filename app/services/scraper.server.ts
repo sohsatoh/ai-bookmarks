@@ -46,21 +46,40 @@ export async function fetchPageMetadata(url: string): Promise<{
     const descRegex = /<meta\s+name="description"\s+content="([^"]+)"/i;
     const descMatch = ogDescRegex.exec(html) || descRegex.exec(html);
 
-    // 本文の一部を抽出（簡易版：最初のpタグの内容）
-    const bodyRegex = /<p[^>]*>([^<]+)<\/p>/i;
-    const bodyMatch = bodyRegex.exec(html);
+    // 本文を抽出（<body>タグ全体から取得）
+    let bodyContent = "";
+    const bodyStartRegex = /<body[^>]*>/i;
+    const bodyEndRegex = /<\/body>/i;
+    const bodyStartMatch = bodyStartRegex.exec(html);
+    const bodyEndMatch = bodyEndRegex.exec(html);
+
+    if (bodyStartMatch && bodyEndMatch) {
+      const bodyHtml = html.slice(bodyStartMatch.index, bodyEndMatch.index);
+
+      // script, style, nav, footer, headerなどのノイズを除去
+      const cleanedBody = bodyHtml
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ")
+        .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ")
+        .replace(/<nav\b[^<]*(?:(?!<\/nav>)<[^<]*)*<\/nav>/gi, " ")
+        .replace(/<footer\b[^<]*(?:(?!<\/footer>)<[^<]*)*<\/footer>/gi, " ")
+        .replace(/<header\b[^<]*(?:(?!<\/header>)<[^<]*)*<\/header>/gi, " ");
+
+      // HTMLタグを除去してテキスト化
+      bodyContent = stripHtmlTags(decodeHtmlEntities(cleanedBody))
+        .replace(/\s+/g, " ") // 連続する空白を1つに
+        .trim()
+        .slice(0, 1500); // AI分析用に1500文字まで取得
+    }
 
     const rawTitle = titleMatch ? titleMatch[1].trim() : new URL(url).hostname;
     const rawDescription = descMatch ? descMatch[1].trim() : "";
-    const rawBodyText = bodyMatch ? bodyMatch[1].trim() : "";
 
     // XSS対策: HTMLタグを除去してテキストのみ抽出
     const title = stripHtmlTags(decodeHtmlEntities(rawTitle)).slice(0, 150);
     const description = stripHtmlTags(decodeHtmlEntities(rawDescription)).slice(0, 300);
-    const bodyText = stripHtmlTags(decodeHtmlEntities(rawBodyText)).slice(0, 400);
 
-    // コンテンツを結合（AI分析用、コスト削減のため短縮）
-    const content = [title, description, bodyText].filter(Boolean).join(" ").slice(0, 800); // 最大800文字
+    // コンテンツを結合（AI分析用）
+    const content = bodyContent || [title, description].filter(Boolean).join(" ").slice(0, 1500); // 最大1500文字
 
     return {
       title: title || "Untitled",

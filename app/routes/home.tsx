@@ -602,18 +602,12 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
             {loaderData.bookmarksByCategory.map((major) => (
               <div key={major.majorCategory} className="space-y-8">
                 <h2 className="text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight flex items-center gap-3 pb-4 border-b border-gray-200 dark:border-gray-800">
-                  {major.majorCategoryIcon && (
-                    <span dangerouslySetInnerHTML={{ __html: major.majorCategoryIcon }} className="text-blue-500" />
-                  )}
                   {major.majorCategory}
                 </h2>
 
                 {major.minorCategories.map((minor) => (
                   <div key={minor.minorCategory} className="space-y-4">
                     <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider pl-1 flex items-center gap-2">
-                      {minor.minorCategoryIcon && (
-                        <span dangerouslySetInnerHTML={{ __html: minor.minorCategoryIcon }} className="text-blue-500 flex-shrink-0 w-4 h-4" />
-                      )}
                       {minor.minorCategory}
                     </h3>
 

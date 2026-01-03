@@ -1,5 +1,5 @@
 import { Form, useNavigation, useSearchParams, useRevalidator } from "react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import type { Route } from "./+types/home";
 import {
   getDb,
@@ -225,6 +225,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const revalidator = useRevalidator();
   const [justAdded, setJustAdded] = useState<number[]>([]);
+  const formRef = useRef<HTMLFormElement>(null);
   
   const currentSortBy = loaderData.sortBy;
   const currentSortOrder = loaderData.sortOrder;
@@ -252,6 +253,11 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
   // 新しく追加されたブックマークのアニメーション
   useEffect(() => {
     if (actionData?.success && !isSubmitting) {
+      // フォームをクリア
+      if (formRef.current) {
+        formRef.current.reset();
+      }
+      
       // 成功後にリフレッシュして最新のブックマークを取得
       revalidator.revalidate();
       
@@ -351,7 +357,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
 
         {/* URL入力フォーム */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-8">
-          <Form method="post" className="space-y-4">
+          <Form method="post" className="space-y-4" ref={formRef}>
             <input type="hidden" name="intent" value="add" />
             <div>
               <label

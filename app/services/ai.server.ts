@@ -28,12 +28,10 @@ export async function generateBookmarkMetadata(ai: Ai, url: string, pageTitle: s
 既存小: ${sanitizedMinorCats.join(",") || "なし"}`;
 
   try {
-    // OpenAI GPT 20Bモデルを使用（messages形式）
-    const response = await ai.run("@cf/openai/gpt-oss-20b" as any, {
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userInput },
-      ],
+    // OpenAI GPT 20Bモデルを使用（input形式）
+    const response = await ai.run("@cf/openai/gpt-oss-20b", {
+      instructions: systemPrompt,
+      input: userInput,
       max_tokens: 150,
     });
 

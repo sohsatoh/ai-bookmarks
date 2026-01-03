@@ -12,12 +12,13 @@ export default async function handleRequest(
 ) {
   let shellRendered = false;
   const userAgent = request.headers.get("user-agent");
+  let statusCode = responseStatusCode;
 
   const body = await renderToReadableStream(
     <ServerRouter context={routerContext} url={request.url} />,
     {
       onError(error: unknown) {
-        responseStatusCode = 500;
+        statusCode = 500;
         // Log streaming rendering errors from inside the shell.  Don't log
         // errors encountered during initial shell rendering since they'll
         // reject and get logged in handleDocumentRequest.
@@ -35,9 +36,27 @@ export default async function handleRequest(
     await body.allReady;
   }
 
+  // セキュリティヘッダーの設定
   responseHeaders.set("Content-Type", "text/html");
+  responseHeaders.set(
+    "Content-Security-Policy",
+    "default-src 'self'; " +
+      "script-src 'self' 'unsafe-inline'; " +
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+      "font-src 'self' https://fonts.gstatic.com; " +
+      "img-src 'self' data: https:; " +
+      "connect-src 'self'; " +
+      "frame-ancestors 'none'; " +
+      "base-uri 'self'; " +
+      "form-action 'self';"
+  );
+  responseHeaders.set("X-Content-Type-Options", "nosniff");
+  responseHeaders.set("X-Frame-Options", "DENY");
+  responseHeaders.set("X-XSS-Protection", "1; mode=block");
+  responseHeaders.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  
   return new Response(body, {
     headers: responseHeaders,
-    status: responseStatusCode,
+    status: statusCode,
   });
 }

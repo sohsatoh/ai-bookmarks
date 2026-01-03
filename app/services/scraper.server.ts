@@ -20,12 +20,18 @@ export async function fetchPageMetadata(url: string): Promise<{
       headers: {
         "User-Agent": "Mozilla/5.0 (compatible; BookmarkBot/1.0; +https://example.com/bot)",
       },
-      // タイムアウト設定
+      // DoS対策: タイムアウト設定
       signal: AbortSignal.timeout(10000),
     });
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    // DoS対策: コンテンツサイズの制限（5MB）
+    const contentLength = response.headers.get("content-length");
+    if (contentLength && Number.parseInt(contentLength) > 5 * 1024 * 1024) {
+      throw new Error("コンテンツサイズが大きすぎます");
     }
 
     const html = await response.text();

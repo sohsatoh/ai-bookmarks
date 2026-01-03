@@ -13,6 +13,7 @@ import { bookmarks } from "~/db/schema";
 import { eq } from "drizzle-orm";
 import { generateBookmarkMetadata } from "~/services/ai.server";
 import { fetchPageMetadata, validateUrl } from "~/services/scraper.server";
+import { checkRateLimit, getClientIp } from "~/services/rate-limit.server";
 
 export function meta(_args: Route.MetaArgs) {
   return [
@@ -34,6 +35,17 @@ export async function loader({ context }: Route.LoaderArgs) {
 }
 
 export async function action({ request, context }: Route.ActionArgs) {
+  // DoS対策: レート制限チェック
+  const clientIp = getClientIp(request);
+  const rateLimit = checkRateLimit(clientIp, 10, 60 * 1000); // 1分間に10リクエスト
+  
+  if (!rateLimit.allowed) {
+    const resetInSeconds = Math.ceil(rateLimit.resetIn / 1000);
+    return {
+      error: `リクエスト制限を超えました。${resetInSeconds}秒後に再試行してください。`,
+    };
+  }
+
   const formData = await request.formData();
   const intent = formData.get("intent");
 
@@ -69,6 +81,13 @@ export async function action({ request, context }: Route.ActionArgs) {
   if (!url || typeof url !== "string") {
     return {
       error: "URLを入力してください",
+    };
+  }
+
+  // DoS対策: URL長の制限
+  if (url.length > 2048) {
+    return {
+      error: "URLが長すぎます（最大2048文字）",
     };
   }
 

@@ -525,12 +525,22 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                             </div>
                           )}
                           <div className="flex items-start justify-between gap-6">
-                            <div className="flex-1 min-w-0">
+                            <div className="flex-1 min-w-0 flex gap-4">
+                              {/* Favicon */}
+                              <img
+                                src={`https://www.google.com/s2/favicons?domain=${new URL(bookmark.url).hostname}&sz=32`}
+                                alt=""
+                                className="w-8 h-8 rounded-lg flex-shrink-0 mt-0.5"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                              
                               <a
                                 href={bookmark.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="block group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors"
+                                className="flex-1 min-w-0 block group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors"
                               >
                                 <h4 className="font-semibold text-base text-gray-900 dark:text-white mb-3 line-clamp-2 leading-snug">
                                   {bookmark.title}

@@ -34,9 +34,13 @@ export interface CreateBookmarkInput {
 export interface BookmarksByCategory {
   majorCategory: string;
   majorCategoryIcon?: string | null;
+  majorCategoryId: number;
+  majorCategoryOrder: number;
   minorCategories: {
     minorCategory: string;
     minorCategoryIcon?: string | null;
+    minorCategoryId: number;
+    minorCategoryOrder: number;
     bookmarks: BookmarkWithCategories[];
   }[];
 }

@@ -1,5 +1,5 @@
 import { drizzle } from "drizzle-orm/d1";
-import { eq, desc } from "drizzle-orm";
+import { eq, asc } from "drizzle-orm";
 import { bookmarks, categories } from "~/db/schema";
 import type { BookmarkWithCategories, BookmarksByCategory } from "~/types/bookmark";
 
@@ -83,15 +83,15 @@ export async function createBookmark(
  * 全ブックマークをカテゴリ別に取得
  */
 export async function getAllBookmarks(db: ReturnType<typeof getDb>): Promise<BookmarksByCategory[]> {
-  // カテゴリとブックマークを並行取得
+  // カテゴリとブックマークを並行取得（displayOrderでソート）
   const [allCategories, results] = await Promise.all([
-    db.select().from(categories),
+    db.select().from(categories).orderBy(asc(categories.displayOrder)),
     db
       .select({
         bookmark: bookmarks,
       })
       .from(bookmarks)
-      .orderBy(desc(bookmarks.createdAt)),
+      .orderBy(asc(bookmarks.displayOrder)),
   ]);
 
   const categoryMap = new Map(allCategories.map((c) => [c.id, c]));
@@ -135,26 +135,30 @@ export async function getAllBookmarks(db: ReturnType<typeof getDb>): Promise<Boo
     minorMap.get(minorCatId)!.push(bookmark);
   }
 
-  // 最終的なデータ構造に変換（カテゴリは名前順にソート）
+  // 最終的なデータ構造に変換（displayOrderでソート）
   return Array.from(grouped.entries())
     .map(([majorCatId, minorMap]) => {
       const majorCat = categoryMap.get(majorCatId);
       return {
         majorCategory: majorCat?.name || "不明",
         majorCategoryIcon: majorCat?.icon || null,
+        majorCategoryId: majorCatId,
+        majorCategoryOrder: majorCat?.displayOrder || 0,
         minorCategories: Array.from(minorMap.entries())
           .map(([minorCatId, bookmarks]) => {
             const minorCat = categoryMap.get(minorCatId);
             return {
               minorCategory: minorCat?.name || "不明",
               minorCategoryIcon: minorCat?.icon || null,
+              minorCategoryId: minorCatId,
+              minorCategoryOrder: minorCat?.displayOrder || 0,
               bookmarks,
             };
           })
-          .sort((a, b) => a.minorCategory.localeCompare(b.minorCategory, "ja")),
+          .sort((a, b) => a.minorCategoryOrder - b.minorCategoryOrder),
       };
     })
-    .sort((a, b) => a.majorCategory.localeCompare(b.majorCategory, "ja"));
+    .sort((a, b) => a.majorCategoryOrder - b.majorCategoryOrder);
 }
 
 /**
@@ -171,4 +175,18 @@ export async function checkDuplicateUrl(db: ReturnType<typeof getDb>, url: strin
   const existing = await db.select().from(bookmarks).where(eq(bookmarks.url, url)).limit(1);
 
   return existing.length > 0;
+}
+
+/**
+ * ブックマークの表示順序を更新
+ */
+export async function updateBookmarkOrder(db: ReturnType<typeof getDb>, bookmarkId: number, newOrder: number): Promise<void> {
+  await db.update(bookmarks).set({ displayOrder: newOrder }).where(eq(bookmarks.id, bookmarkId));
+}
+
+/**
+ * カテゴリの表示順序を更新
+ */
+export async function updateCategoryOrder(db: ReturnType<typeof getDb>, categoryId: number, newOrder: number): Promise<void> {
+  await db.update(categories).set({ displayOrder: newOrder }).where(eq(categories.id, categoryId));
 }

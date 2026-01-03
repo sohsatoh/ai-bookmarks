@@ -1,4 +1,4 @@
-import { Form, useNavigation, useSearchParams, useRevalidator } from "react-router";
+import { Form, useNavigation, useRevalidator, useSubmit } from "react-router";
 import { useEffect, useState, useRef } from "react";
 import type { Route } from "./+types/home";
 import {
@@ -10,6 +10,8 @@ import {
   getAllCategories,
   checkDuplicateUrl,
   deleteBookmark,
+  updateBookmarkOrder,
+  updateCategoryOrder,
 } from "~/services/db.server";
 import { bookmarks } from "~/db/schema";
 import { eq } from "drizzle-orm";
@@ -31,9 +33,6 @@ export function meta(_args: Route.MetaArgs) {
 
 export async function loader({ context, request }: Route.LoaderArgs) {
   const db = getDb(context.cloudflare.env.DB);
-  const url = new URL(request.url);
-  const sortBy = url.searchParams.get("sortBy") || "date";
-  const sortOrder = url.searchParams.get("sortOrder") || "desc";
   
   const [bookmarksByCategory, allCategories] = await Promise.all([
     getAllBookmarks(db),
@@ -47,45 +46,10 @@ export async function loader({ context, request }: Route.LoaderArgs) {
     )
   );
 
-  // ソート処理（スター、アーカイブ、ユーザー指定の順）
-  const sortedBookmarksByCategory = bookmarksByCategory.map((major) => ({
-    ...major,
-    minorCategories: major.minorCategories.map((minor) => ({
-      ...minor,
-      bookmarks: [...minor.bookmarks].sort((a, b) => {
-        // 1. アーカイブ済みを最後に
-        if (a.isArchived !== b.isArchived) {
-          return a.isArchived ? 1 : -1;
-        }
-        
-        // 2. スターアイテムを最優先（アーカイブでない場合）
-        if (!a.isArchived && a.isStarred !== b.isStarred) {
-          return a.isStarred ? -1 : 1;
-        }
-        
-        // 3. ユーザー指定のソートを適用
-        let comparison = 0;
-        
-        if (sortBy === "title") {
-          comparison = a.title.localeCompare(b.title, "ja");
-        } else if (sortBy === "url") {
-          comparison = a.url.localeCompare(b.url);
-        } else {
-          // date
-          comparison = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        }
-        
-        return sortOrder === "asc" ? comparison : -comparison;
-      }),
-    })),
-  }));
-
   return {
-    bookmarksByCategory: sortedBookmarksByCategory,
+    bookmarksByCategory,
     starredBookmarks,
     allCategories,
-    sortBy,
-    sortOrder,
   };
 }
 
@@ -448,6 +412,50 @@ export async function action({ request, context }: Route.ActionArgs) {
     }
   }
 
+  // ブックマークの並び替え処理
+  if (intent === "reorderBookmarks") {
+    try {
+      const ordersJson = formData.get("orders") as string;
+      if (!ordersJson) {
+        return { error: "並び替え情報が不正です" };
+      }
+
+      const orders: Array<{ id: number; order: number }> = JSON.parse(ordersJson);
+      
+      // 各ブックマークの順序を更新
+      await Promise.all(
+        orders.map(({ id, order }) => updateBookmarkOrder(db, id, order))
+      );
+
+      return { success: true };
+    } catch (error) {
+      console.error("Reorder bookmarks failed:", error);
+      return { error: "並び替えに失敗しました" };
+    }
+  }
+
+  // カテゴリの並び替え処理
+  if (intent === "reorderCategories") {
+    try {
+      const ordersJson = formData.get("orders") as string;
+      if (!ordersJson) {
+        return { error: "並び替え情報が不正です" };
+      }
+
+      const orders: Array<{ id: number; order: number }> = JSON.parse(ordersJson);
+      
+      // 各カテゴリの順序を更新
+      await Promise.all(
+        orders.map(({ id, order }) => updateCategoryOrder(db, id, order))
+      );
+
+      return { success: true };
+    } catch (error) {
+      console.error("Reorder categories failed:", error);
+      return { error: "並び替えに失敗しました" };
+    }
+  }
+
   // ブックマーク追加処理
   const url = formData.get("url") as string;
 
@@ -562,8 +570,8 @@ export async function action({ request, context }: Route.ActionArgs) {
 export default function Home({ loaderData, actionData }: Route.ComponentProps) {
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
-  const [searchParams, setSearchParams] = useSearchParams();
   const revalidator = useRevalidator();
+  const submit = useSubmit();
   const formRef = useRef<HTMLFormElement>(null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [editingBookmark, setEditingBookmark] = useState<{
@@ -574,11 +582,13 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
     minorCategory: string;
   } | null>(null);
   
-  const currentSortBy = loaderData.sortBy;
-  const currentSortOrder = loaderData.sortOrder;
   const [processingCount, setProcessingCount] = useState(0);
   const lastActionDataRef = useRef<typeof actionData | null>(null);
   const previousBookmarkCountRef = useRef(0);
+  
+  // ドラッグ&ドロップ用state
+  const [draggedItem, setDraggedItem] = useState<{ type: 'bookmark' | 'category'; id: number; currentOrder: number } | null>(null);
+  const [dragOverItem, setDragOverItem] = useState<{ type: 'bookmark' | 'category'; id: number } | null>(null);
   
   // 現在のブックマーク総数を計算
   const currentBookmarkCount = loaderData.bookmarksByCategory.reduce(
@@ -659,19 +669,112 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
   const handleDismissToast = (id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id));
   };
-  
-  const handleSortChange = (newSortBy: string) => {
-    const newParams = new URLSearchParams(searchParams);
-    
-    // 同じソート項目をクリックした場合は順序を反転
-    if (newSortBy === currentSortBy) {
-      newParams.set("sortOrder", currentSortOrder === "asc" ? "desc" : "asc");
-    } else {
-      newParams.set("sortBy", newSortBy);
-      newParams.set("sortOrder", "desc");
+
+  // ドラッグ&ドロップハンドラー
+  const handleDragStart = (type: 'bookmark' | 'category', id: number, order: number) => {
+    setDraggedItem({ type, id, currentOrder: order });
+  };
+
+  const handleDragOver = (e: React.DragEvent, type: 'bookmark' | 'category', id: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!draggedItem || draggedItem.type !== type || draggedItem.id === id) {
+      return;
     }
+    setDragOverItem({ type, id });
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetType: 'bookmark' | 'category', targetId: number, targetOrder: number, minorCategoryId?: number) => {
+    e.preventDefault();
     
-    setSearchParams(newParams);
+    if (!draggedItem || draggedItem.type !== targetType || draggedItem.id === targetId) {
+      setDraggedItem(null);
+      setDragOverItem(null);
+      return;
+    }
+
+    try {
+      if (targetType === 'bookmark') {
+        // ブックマークの並び替え
+        // ドラッグ元とドロップ先のカテゴリを取得
+        let draggedCategory = null;
+        let targetCategory = null;
+        
+        for (const major of loaderData.bookmarksByCategory) {
+          for (const minor of major.minorCategories) {
+            if (minor.bookmarks.some(b => b.id === draggedItem.id)) {
+              draggedCategory = minor;
+            }
+            if (minor.bookmarks.some(b => b.id === targetId)) {
+              targetCategory = minor;
+            }
+          }
+        }
+        
+        if (!draggedCategory || !targetCategory) return;
+        if (draggedCategory !== targetCategory) {
+          console.log('異なるカテゴリ間の移動はサポートされていません');
+          return;
+        }
+
+        const bookmarksInCategory = [...targetCategory.bookmarks];
+        const draggedIndex = bookmarksInCategory.findIndex(b => b.id === draggedItem.id);
+        const targetIndex = bookmarksInCategory.findIndex(b => b.id === targetId);
+        
+        if (draggedIndex === -1 || targetIndex === -1 || draggedIndex === targetIndex) return;
+
+        // 配列を並び替え
+        const [removed] = bookmarksInCategory.splice(draggedIndex, 1);
+        bookmarksInCategory.splice(targetIndex, 0, removed);
+
+        // 新しい順序を計算
+        const orders = bookmarksInCategory.map((bookmark, index) => ({
+          id: bookmark.id,
+          order: index
+        }));
+
+        // サーバーに送信
+        const formData = new FormData();
+        formData.append('intent', 'reorderBookmarks');
+        formData.append('orders', JSON.stringify(orders));
+        
+        submit(formData, { method: 'post', action: '/?index' });
+      } else if (targetType === 'category') {
+        // カテゴリの並び替え
+        const categories = loaderData.bookmarksByCategory;
+        const draggedIndex = categories.findIndex(c => c.majorCategoryId === draggedItem.id);
+        const targetIndex = categories.findIndex(c => c.majorCategoryId === targetId);
+        
+        if (draggedIndex === -1 || targetIndex === -1) return;
+
+        const reordered = [...categories];
+        const [removed] = reordered.splice(draggedIndex, 1);
+        reordered.splice(targetIndex, 0, removed);
+
+        // 新しい順序を計算
+        const orders = reordered.map((category, index) => ({
+          id: category.majorCategoryId,
+          order: index
+        }));
+
+        // サーバーに送信
+        const formData = new FormData();
+        formData.append('intent', 'reorderCategories');
+        formData.append('orders', JSON.stringify(orders));
+        
+        submit(formData, { method: 'post', action: '/?index' });
+      }
+    } catch (error) {
+      console.error('Reorder failed:', error);
+    } finally {
+      setDraggedItem(null);
+      setDragOverItem(null);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedItem(null);
+    setDragOverItem(null);
   };
 
   return (
@@ -760,34 +863,6 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
           </p>
         </header>
 
-        {/* ソート機能 - セグメンテッドコントロール風 */}
-        <div className="flex justify-center sm:justify-start mb-10">
-          <div className="inline-flex bg-gray-200/50 dark:bg-gray-800/50 p-1 rounded-xl">
-            {[
-              { id: "date", label: "Date" },
-              { id: "title", label: "Title" },
-              { id: "url", label: "URL" }
-            ].map((item) => (
-              <button
-                key={item.id}
-                onClick={() => handleSortChange(item.id)}
-                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  currentSortBy === item.id
-                    ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm"
-                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                }`}
-              >
-                <span className="flex items-center gap-1">
-                  {item.label}
-                  {currentSortBy === item.id && (
-                    <span className="text-[10px] opacity-60">{currentSortOrder === "asc" ? "↑" : "↓"}</span>
-                  )}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* URL入力フォーム - iOS検索バー風 */}
         <div className="mb-16 relative z-20">
           <Form method="post" className="relative group" ref={formRef}>
@@ -866,13 +941,33 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                 </div>
 
                 <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                  {loaderData.starredBookmarks.map((bookmark) => {
+                  {loaderData.starredBookmarks.map((bookmark, index) => {
+                    const isDragging = draggedItem?.type === 'bookmark' && draggedItem.id === bookmark.id;
+                    const isDragOver = dragOverItem?.type === 'bookmark' && dragOverItem.id === bookmark.id;
+                    
                     return (
                     <div
                       key={bookmark.id}
-                      className="group relative bg-white dark:bg-gray-900 rounded-2xl p-5 transition-all duration-300 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-white/5 border border-transparent hover:border-gray-100 dark:hover:border-gray-800 flex flex-col"
+                      draggable
+                      onDragStart={() => handleDragStart('bookmark', bookmark.id, index)}
+                      onDragOver={(e) => handleDragOver(e, 'bookmark', bookmark.id)}
+                      onDrop={(e) => handleDrop(e, 'bookmark', bookmark.id, index)}
+                      onDragEnd={handleDragEnd}
+                      className={`group relative bg-white dark:bg-gray-900 rounded-2xl p-5 transition-all duration-200 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-white/5 border flex flex-col ${
+                        isDragging 
+                          ? 'opacity-30 scale-95 cursor-grabbing border-gray-300 dark:border-gray-700' 
+                          : 'cursor-grab border-transparent hover:border-gray-100 dark:hover:border-gray-800'
+                      } ${
+                        isDragOver ? 'ring-2 ring-blue-500 ring-offset-2 dark:ring-blue-400 scale-105 shadow-lg' : ''
+                      }`}
                     >
                       <div className="flex flex-col flex-1 min-h-0">
+                        {/* ドラッグハンドルアイコン */}
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-40 transition-opacity pointer-events-none">
+                          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9h8M8 15h8" />
+                          </svg>
+                        </div>
                         <div className="flex items-start gap-3 mb-3">
                           {/* Favicon */}
                           <div className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800 flex items-center justify-center flex-shrink-0 shadow-inner">
@@ -1030,9 +1125,29 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
               </div>
             )}
 
-            {loaderData.bookmarksByCategory.map((major) => (
+            {loaderData.bookmarksByCategory.map((major, majorIndex) => {
+              const isCategoryDragging = draggedItem?.type === 'category' && draggedItem.id === major.majorCategoryId;
+              const isCategoryDragOver = dragOverItem?.type === 'category' && dragOverItem.id === major.majorCategoryId;
+              
+              return (
               <div key={major.majorCategory} id={major.majorCategory} className="space-y-8 scroll-mt-24">
-                <h2 className="text-xl sm:text-2xl md:text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight flex items-center gap-3 pb-4 border-b border-gray-200 dark:border-gray-800">
+                <h2
+                  draggable
+                  onDragStart={() => handleDragStart('category', major.majorCategoryId, majorIndex)}
+                  onDragOver={(e) => handleDragOver(e, 'category', major.majorCategoryId)}
+                  onDrop={(e) => handleDrop(e, 'category', major.majorCategoryId, majorIndex)}
+                  onDragEnd={handleDragEnd}
+                  className={`text-xl sm:text-2xl md:text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight flex items-center gap-3 pb-4 border-b transition-all duration-200 ${
+                    isCategoryDragging 
+                      ? 'opacity-30 cursor-grabbing border-gray-400 dark:border-gray-600' 
+                      : 'cursor-grab border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
+                  } ${
+                    isCategoryDragOver ? 'border-blue-500 dark:border-blue-400 border-b-4 scale-105' : ''
+                  }`}
+                >
+                  <svg className="w-5 h-5 text-gray-400 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9h8M8 15h8" />
+                  </svg>
                   {major.majorCategory}
                 </h2>
 
@@ -1043,15 +1158,35 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                     </h3>
 
                     <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                      {minor.bookmarks.map((bookmark) => {
+                      {minor.bookmarks.map((bookmark, index) => {
+                        const isDragging = draggedItem?.type === 'bookmark' && draggedItem.id === bookmark.id;
+                        const isDragOver = dragOverItem?.type === 'bookmark' && dragOverItem.id === bookmark.id;
+                        
                         return (
                         <div
                           key={bookmark.id}
-                          className={`group relative bg-white dark:bg-gray-900 rounded-2xl p-5 transition-all duration-300 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-white/5 border border-transparent hover:border-gray-100 dark:hover:border-gray-800 flex flex-col ${
+                          draggable
+                          onDragStart={() => handleDragStart('bookmark', bookmark.id, index)}
+                          onDragOver={(e) => handleDragOver(e, 'bookmark', bookmark.id)}
+                          onDrop={(e) => handleDrop(e, 'bookmark', bookmark.id, index, minor.minorCategoryId)}
+                          onDragEnd={handleDragEnd}
+                          className={`group relative bg-white dark:bg-gray-900 rounded-2xl p-5 transition-all duration-200 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-white/5 border flex flex-col ${
                             bookmark.isArchived ? 'opacity-60 grayscale' : ''
+                          } ${
+                            isDragging 
+                              ? 'opacity-30 scale-95 cursor-grabbing border-gray-300 dark:border-gray-700' 
+                              : 'cursor-grab border-transparent hover:border-gray-100 dark:hover:border-gray-800'
+                          } ${
+                            isDragOver ? 'ring-2 ring-blue-500 ring-offset-2 dark:ring-blue-400 scale-105 shadow-lg' : ''
                           }`}
                         >
                           <div className="flex flex-col flex-1 min-h-0">
+                            {/* ドラッグハンドルアイコン */}
+                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-40 transition-opacity pointer-events-none">
+                              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9h8M8 15h8" />
+                              </svg>
+                            </div>
                             <div className="flex items-start gap-3 mb-3">
                               {/* Favicon */}
                               <div className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800 flex items-center justify-center flex-shrink-0 shadow-inner">
@@ -1228,7 +1363,8 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                   </div>
                 ))}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
           </main>

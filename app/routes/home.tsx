@@ -504,6 +504,49 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
       </div>
 
       <div className="max-w-[1400px] mx-auto px-6 sm:px-8 py-12">
+        <div className="flex gap-8">
+          {/* 左サイドバー - カテゴリTOC */}
+          <aside className="hidden lg:block w-64 flex-shrink-0">
+            <div className="sticky top-24 space-y-2">
+              <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 px-3">
+                Categories
+              </h3>
+              <nav className="space-y-1">
+                {loaderData.bookmarksByCategory.map((major) => (
+                  <div key={major.majorCategory}>
+                    <a
+                      href={`#${major.majorCategory}`}
+                      className="block px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                    >
+                      {major.majorCategory}
+                      <span className="ml-2 text-xs text-gray-400">
+                        ({major.minorCategories.reduce((sum, minor) => sum + minor.bookmarks.length, 0)})
+                      </span>
+                    </a>
+                    {/* 小カテゴリ */}
+                    <div className="ml-4 mt-1 space-y-0.5">
+                      {major.minorCategories.map((minor) => (
+                        <a
+                          key={minor.minorCategory}
+                          href={`#${major.majorCategory}-${minor.minorCategory}`}
+                          className="block px-3 py-1.5 text-xs text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-md transition-colors"
+                        >
+                          <span className="flex items-center gap-2">
+                            <span className="w-1 h-1 rounded-full bg-gray-400"></span>
+                            {minor.minorCategory}
+                            <span className="text-[10px] text-gray-400">({minor.bookmarks.length})</span>
+                          </span>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </nav>
+            </div>
+          </aside>
+
+          {/* メインコンテンツ */}
+          <main className="flex-1 min-w-0">
         {/* ヒーローセクション */}
         <header className="mb-12 text-center sm:text-left">
           <h2 className="text-4xl sm:text-5xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4 tracking-tight leading-tight">
@@ -612,13 +655,13 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
         ) : (
           <div className="space-y-16">
             {loaderData.bookmarksByCategory.map((major) => (
-              <div key={major.majorCategory} className="space-y-8">
+              <div key={major.majorCategory} id={major.majorCategory} className="space-y-8 scroll-mt-24">
                 <h2 className="text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight flex items-center gap-3 pb-4 border-b border-gray-200 dark:border-gray-800">
                   {major.majorCategory}
                 </h2>
 
                 {major.minorCategories.map((minor) => (
-                  <div key={minor.minorCategory} className="space-y-4">
+                  <div key={minor.minorCategory} id={`${major.majorCategory}-${minor.minorCategory}`} className="space-y-4 scroll-mt-24">
                     <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider pl-1 flex items-center gap-2">
                       {minor.minorCategory}
                     </h3>
@@ -925,6 +968,9 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
           </div>
         </div>
       )}
+          </main>
+        </div>
+      </div>
     </div>
   );
 }

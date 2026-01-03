@@ -42,21 +42,21 @@ function Toast({ toast, onDismiss }: { toast: ToastMessage; onDismiss: (id: stri
   };
 
   const bgColor = {
-    info: "bg-white dark:bg-gray-800 border-blue-500 dark:border-blue-400",
-    success: "bg-white dark:bg-gray-800 border-green-500 dark:border-green-400",
-    error: "bg-white dark:bg-gray-800 border-red-500 dark:border-red-400",
+    info: "bg-white/80 dark:bg-gray-800/80 border-gray-200/50 dark:border-gray-700/50",
+    success: "bg-white/80 dark:bg-gray-800/80 border-gray-200/50 dark:border-gray-700/50",
+    error: "bg-white/80 dark:bg-gray-800/80 border-red-200/50 dark:border-red-900/30",
   }[toast.type];
 
   const textColor = {
-    info: "text-gray-700 dark:text-gray-300",
-    success: "text-gray-900 dark:text-white",
-    error: "text-gray-900 dark:text-white",
+    info: "text-[#1D1D1F] dark:text-[#F5F5F7]",
+    success: "text-[#1D1D1F] dark:text-[#F5F5F7]",
+    error: "text-[#1D1D1F] dark:text-[#F5F5F7]",
   }[toast.type];
 
   const iconColor = {
-    info: "text-blue-500 dark:text-blue-400",
-    success: "text-green-500 dark:text-green-400",
-    error: "text-red-500 dark:text-red-400",
+    info: "text-blue-500",
+    success: "text-green-500",
+    error: "text-red-500",
   }[toast.type];
 
   const icon = {
@@ -80,19 +80,19 @@ function Toast({ toast, onDismiss }: { toast: ToastMessage; onDismiss: (id: stri
 
   return (
     <div
-      className={`${bgColor} border-l-4 rounded-xl shadow-lg p-4 transition-all duration-300 backdrop-blur-sm ${
-        isVisible ? "opacity-100 translate-x-0" : "opacity-0 translate-x-2"
+      className={`${bgColor} border rounded-2xl shadow-lg shadow-black/5 dark:shadow-black/20 p-4 transition-all duration-500 backdrop-blur-xl ${
+        isVisible ? "opacity-100 translate-y-0 scale-100" : "opacity-0 -translate-y-4 scale-95"
       }`}
     >
       <div className="flex items-start gap-3">
         <div className={iconColor}>{icon}</div>
-        <div className="flex-1 min-w-0">
-          <p className={`font-medium text-sm ${textColor}`}>{toast.title}</p>
-          <p className={`text-sm mt-1 ${textColor} opacity-70 line-clamp-2 break-all`}>{toast.message}</p>
+        <div className="flex-1 min-w-0 pt-0.5">
+          <p className={`font-semibold text-sm ${textColor}`}>{toast.title}</p>
+          <p className={`text-sm mt-0.5 ${textColor} opacity-70 line-clamp-2 break-all`}>{toast.message}</p>
         </div>
         <button
           onClick={handleClose}
-          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />

@@ -451,156 +451,132 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-[#F5F5F7] dark:bg-black transition-colors duration-500">
       <ToastContainer toasts={toasts} onDismiss={handleDismissToast} />
-      <div className="max-w-4xl mx-auto px-6 sm:px-8 py-12">
-        {/* ヘッダー */}
-        <header className="mb-12">
-          <h1 className="text-4xl font-semibold text-gray-900 dark:text-white mb-3 tracking-tight">
+      
+      {/* ナビゲーションバー風ヘッダー */}
+      <div className="sticky top-0 z-30 bg-[#F5F5F7]/80 dark:bg-black/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800/50">
+        <div className="max-w-5xl mx-auto px-6 sm:px-8 h-16 flex items-center justify-between">
+          <h1 className="text-xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">
             Bookmarks
           </h1>
-          <p className="text-base text-gray-600 dark:text-gray-400">
-            自動カテゴリ分類ブックマーク管理システム
+          <div className="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-200/50 dark:bg-gray-800/50 px-3 py-1 rounded-full">
+            AI Powered
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-3xl mx-auto px-6 sm:px-8 py-12">
+        {/* ヒーローセクション */}
+        <header className="mb-12 text-center sm:text-left">
+          <h2 className="text-4xl sm:text-5xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4 tracking-tight leading-tight">
+            Organize your web, <br className="hidden sm:block" />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600">
+              intelligently.
+            </span>
+          </h2>
+          <p className="text-lg text-gray-500 dark:text-gray-400 max-w-xl leading-relaxed">
+            AIがあなたのブックマークを自動で整理。
+            <br />
+            もうカテゴリ分けに迷うことはありません。
           </p>
         </header>
 
-        {/* ソート機能 */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 mb-8">
-          <div className="flex flex-wrap items-center gap-4">
-            <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
-              並び替え
-            </span>
-            <div className="flex gap-2 flex-wrap">
+        {/* ソート機能 - セグメンテッドコントロール風 */}
+        <div className="flex justify-center sm:justify-start mb-10">
+          <div className="inline-flex bg-gray-200/50 dark:bg-gray-800/50 p-1 rounded-xl">
+            {[
+              { id: "date", label: "Date" },
+              { id: "title", label: "Title" },
+              { id: "url", label: "URL" }
+            ].map((item) => (
               <button
-                onClick={() => handleSortChange("date")}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                  currentSortBy === "date"
-                    ? "bg-blue-500 text-white shadow-md"
-                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                key={item.id}
+                onClick={() => handleSortChange(item.id)}
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  currentSortBy === item.id
+                    ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm"
+                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                 }`}
               >
-                日付
-                {currentSortBy === "date" && (
-                  <span className="ml-1">{currentSortOrder === "asc" ? "↑" : "↓"}</span>
-                )}
+                <span className="flex items-center gap-1">
+                  {item.label}
+                  {currentSortBy === item.id && (
+                    <span className="text-[10px] opacity-60">{currentSortOrder === "asc" ? "↑" : "↓"}</span>
+                  )}
+                </span>
               </button>
-              <button
-                onClick={() => handleSortChange("title")}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                  currentSortBy === "title"
-                    ? "bg-blue-500 text-white shadow-md"
-                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                }`}
-              >
-                タイトル
-                {currentSortBy === "title" && (
-                  <span className="ml-1">{currentSortOrder === "asc" ? "↑" : "↓"}</span>
-                )}
-              </button>
-              <button
-                onClick={() => handleSortChange("url")}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                  currentSortBy === "url"
-                    ? "bg-blue-500 text-white shadow-md"
-                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                }`}
-              >
-                URL
-                {currentSortBy === "url" && (
-                  <span className="ml-1">{currentSortOrder === "asc" ? "↑" : "↓"}</span>
-                )}
-              </button>
-            </div>
+            ))}
           </div>
         </div>
 
-        {/* URL入力フォーム */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-8 mb-10">
-          <Form method="post" className="space-y-5" ref={formRef}>
+        {/* URL入力フォーム - iOS検索バー風 */}
+        <div className="mb-16 relative z-20">
+          <Form method="post" className="relative group" ref={formRef}>
             <input type="hidden" name="intent" value="add" />
-            <div>
-              <label
-                htmlFor="url"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3"
-              >
-                新規ブックマーク
-              </label>
-              <div className="flex gap-3 flex-col sm:flex-row">
-                <input
-                  type="url"
-                  id="url"
-                  name="url"
-                  placeholder="https://example.com"
-                  required
-                  disabled={isSubmitting}
-                  className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-base text-gray-900 dark:text-white placeholder-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                />
+            <div className="relative transition-transform duration-300 ease-out group-focus-within:scale-[1.02]">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              </div>
+              <input
+                type="url"
+                id="url"
+                name="url"
+                placeholder="https://example.com"
+                required
+                disabled={isSubmitting}
+                className="block w-full pl-11 pr-32 py-4 bg-white dark:bg-gray-900 border-0 rounded-2xl text-gray-900 dark:text-white placeholder-gray-400 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] focus:ring-2 focus:ring-blue-500/20 focus:outline-none text-lg transition-shadow"
+              />
+              <div className="absolute inset-y-0 right-2 flex items-center">
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-8 py-3 bg-blue-500 hover:bg-blue-600 text-white text-base font-medium rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 whitespace-nowrap shadow-sm hover:shadow-md"
+                  className="px-4 py-2 bg-[#0071e3] hover:bg-[#0077ED] text-white text-sm font-medium rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                 >
                   {isSubmitting ? (
-                    <>
-                      <svg
-                        className="animate-spin h-4 w-4"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        ></circle>
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        ></path>
-                      </svg>
-                      処理中
-                    </>
+                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
                   ) : (
-                    "追加"
+                    "Add"
                   )}
                 </button>
               </div>
             </div>
-
+            
             {/* エラー・成功メッセージ */}
-            {actionData?.error && (
-              <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-xl">
-                <p className="text-red-700 dark:text-red-200 text-sm">
-                  {actionData.error}
-                </p>
-              </div>
-            )}
-            {actionData?.success && (
-              <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-xl">
-                <p className="text-green-700 dark:text-green-200 text-sm">
-                  ブックマークを追加しました
-                </p>
-              </div>
-            )}
+            <div className="absolute top-full left-0 right-0 mt-2 px-2">
+              {actionData?.error && (
+                <p className="text-red-500 text-sm animate-fade-in pl-2">{actionData.error}</p>
+              )}
+              {actionData?.success && (
+                <p className="text-green-500 text-sm animate-fade-in pl-2">Added successfully</p>
+              )}
+            </div>
           </Form>
         </div>
 
         {/* ブックマーク一覧 */}
         {loaderData.bookmarksByCategory.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-500 dark:text-gray-400 text-lg">
-              まだブックマークがありません。URLを追加してください。
+          <div className="text-center py-20">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 mb-6">
+              <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No bookmarks yet</h3>
+            <p className="text-gray-500 dark:text-gray-400">
+              Add a URL above to get started.
             </p>
           </div>
         ) : (
-          <div className="space-y-12">
+          <div className="space-y-16">
             {loaderData.bookmarksByCategory.map((major) => (
-              <div key={major.majorCategory} className="space-y-6">
-                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight flex items-center gap-3">
+              <div key={major.majorCategory} className="space-y-8">
+                <h2 className="text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight flex items-center gap-3 pb-4 border-b border-gray-200 dark:border-gray-800">
                   {major.majorCategoryIcon && (
                     <span dangerouslySetInnerHTML={{ __html: major.majorCategoryIcon }} className="text-blue-500" />
                   )}
@@ -609,33 +585,35 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
 
                 {major.minorCategories.map((minor) => (
                   <div key={minor.minorCategory} className="space-y-4">
-                    <h3 className="text-base font-medium text-gray-600 dark:text-gray-400 pl-4 border-l-4 border-blue-500 flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider pl-1 flex items-center gap-2">
                       {minor.minorCategoryIcon && (
-                        <span dangerouslySetInnerHTML={{ __html: minor.minorCategoryIcon }} className="text-blue-500 flex-shrink-0" />
+                        <span dangerouslySetInnerHTML={{ __html: minor.minorCategoryIcon }} className="text-blue-500 flex-shrink-0 w-4 h-4" />
                       )}
                       {minor.minorCategory}
                     </h3>
 
-                    <div className="grid gap-3 sm:grid-cols-1">
+                    <div className="grid gap-4 sm:grid-cols-1">
                       {minor.bookmarks.map((bookmark) => {
                         return (
                         <div
                           key={bookmark.id}
-                          className={`bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 p-4 sm:p-6 group ${
-                            bookmark.isArchived ? 'opacity-50' : ''
+                          className={`group relative bg-white dark:bg-gray-900 rounded-2xl p-5 transition-all duration-300 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-white/5 border border-transparent hover:border-gray-100 dark:hover:border-gray-800 ${
+                            bookmark.isArchived ? 'opacity-60 grayscale' : ''
                           }`}
                         >
-                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 sm:gap-6">
-                            <div className="flex-1 min-w-0 flex gap-3 sm:gap-4">
+                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                            <div className="flex-1 min-w-0 flex gap-4">
                               {/* Favicon */}
-                              <img
-                                src={`https://www.google.com/s2/favicons?domain=${new URL(bookmark.url).hostname}&sz=32`}
-                                alt=""
-                                className="w-8 h-8 rounded-lg flex-shrink-0 mt-0.5"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = 'none';
-                                }}
-                              />
+                              <div className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800 flex items-center justify-center flex-shrink-0 shadow-inner">
+                                <img
+                                  src={`https://www.google.com/s2/favicons?domain=${new URL(bookmark.url).hostname}&sz=64`}
+                                  alt=""
+                                  className="w-6 h-6 rounded-md"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                  }}
+                                />
+                              </div>
                               
                               <a
                                 href={bookmark.url}
@@ -643,33 +621,28 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                                 rel="noopener noreferrer"
                                 className="flex-1 min-w-0 block group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors"
                               >
-                                <h4 className="font-semibold text-base text-gray-900 dark:text-white mb-2 sm:mb-3 line-clamp-2 leading-snug">
+                                <h4 className="font-semibold text-lg text-[#1D1D1F] dark:text-[#F5F5F7] mb-1 line-clamp-1 tracking-tight">
                                   {bookmark.title}
                                 </h4>
-                                <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mb-3 sm:mb-4 leading-relaxed">
+                                <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 mb-3 leading-relaxed">
                                   {bookmark.description}
                                 </p>
-                                <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-xs text-gray-500 dark:text-gray-500">
-                                  <span className="truncate break-all font-mono text-xs">
-                                    {bookmark.url}
+                                <div className="flex items-center gap-3 text-xs text-gray-400 dark:text-gray-500 font-medium">
+                                  <span className="truncate max-w-[200px]">
+                                    {new URL(bookmark.url).hostname}
                                   </span>
-                                  <span className="shrink-0 flex items-center gap-1.5">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                                      <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                                    </svg>
-                                    {new Date(bookmark.createdAt).toLocaleDateString("ja-JP", {
-                                      year: "numeric",
-                                      month: "2-digit",
-                                      day: "2-digit",
-                                      hour: "2-digit",
-                                      minute: "2-digit",
+                                  <span className="w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-700"></span>
+                                  <span>
+                                    {new Date(bookmark.createdAt).toLocaleDateString("en-US", {
+                                      month: "short",
+                                      day: "numeric",
                                     })}
                                   </span>
                                 </div>
                               </a>
                             </div>
 
-                            <div className="shrink-0 flex flex-col sm:flex-row gap-2">
+                            <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 sm:translate-x-2 group-hover:translate-x-0">
                               {/* 読了ステータスボタン */}
                               <Form method="post">
                                 <input type="hidden" name="intent" value="toggleReadStatus" />
@@ -677,8 +650,8 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                                 <input type="hidden" name="readStatus" value={bookmark.readStatus} />
                                 <button
                                   type="submit"
-                                  className="p-2 text-gray-400 hover:text-green-500 dark:hover:text-green-400 transition-colors rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
-                                  title={bookmark.readStatus === "read" ? "未読にする" : "読了にする"}
+                                  className="p-2 text-gray-400 hover:text-green-500 dark:hover:text-green-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+                                  title={bookmark.readStatus === "read" ? "Mark as unread" : "Mark as read"}
                                 >
                                   {bookmark.readStatus === "read" ? (
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 dark:text-green-400" viewBox="0 0 20 20" fill="currentColor">
@@ -699,8 +672,8 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                                 <input type="hidden" name="isStarred" value={bookmark.isStarred.toString()} />
                                 <button
                                   type="submit"
-                                  className="p-2 text-gray-400 hover:text-yellow-500 dark:hover:text-yellow-400 transition-colors rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
-                                  title={bookmark.isStarred ? "スターを外す" : "スターを付ける"}
+                                  className="p-2 text-gray-400 hover:text-yellow-500 dark:hover:text-yellow-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+                                  title={bookmark.isStarred ? "Unstar" : "Star"}
                                 >
                                   {bookmark.isStarred ? (
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-500 dark:text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
@@ -721,8 +694,8 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                                 <input type="hidden" name="isArchived" value={bookmark.isArchived.toString()} />
                                 <button
                                   type="submit"
-                                  className="p-2 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
-                                  title={bookmark.isArchived ? "アーカイブ解除" : "アーカイブ"}
+                                  className="p-2 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+                                  title={bookmark.isArchived ? "Unarchive" : "Archive"}
                                 >
                                   {bookmark.isArchived ? (
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500 dark:text-blue-400" viewBox="0 0 20 20" fill="currentColor">
@@ -747,8 +720,8 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                                   majorCategory: bookmark.majorCategory.name,
                                   minorCategory: bookmark.minorCategory.name,
                                 })}
-                                className="p-2 text-gray-400 hover:text-purple-500 dark:hover:text-purple-400 transition-colors rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
-                                title="編集"
+                                className="p-2 text-gray-400 hover:text-purple-500 dark:hover:text-purple-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+                                title="Edit"
                               >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -765,8 +738,8 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                                 />
                                 <button
                                   type="submit"
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
-                                  title="削除"
+                                  className="p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                  title="Delete"
                                 >
                                   <svg
                                     xmlns="http://www.w3.org/2000/svg"
@@ -798,14 +771,14 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
 
       {/* 編集モーダル */}
       {editingBookmark && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setEditingBookmark(null)}>
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setEditingBookmark(null)}>
+          <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-white/20 dark:border-white/10" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 sm:p-8">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">ブックマークを編集</h2>
+              <div className="flex items-center justify-between mb-8">
+                <h2 className="text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">Edit Bookmark</h2>
                 <button
                   onClick={() => setEditingBookmark(null)}
-                  className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -819,8 +792,8 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
 
                 <div className="space-y-6">
                   <div>
-                    <label htmlFor="edit-title" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      タイトル
+                    <label htmlFor="edit-title" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 ml-1">
+                      Title
                     </label>
                     <input
                       id="edit-title"
@@ -828,13 +801,13 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                       type="text"
                       defaultValue={editingBookmark.title}
                       required
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                      className="w-full px-4 py-3 rounded-xl border-0 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
                     />
                   </div>
 
                   <div>
-                    <label htmlFor="edit-description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      説明
+                    <label htmlFor="edit-description" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 ml-1">
+                      Description
                     </label>
                     <textarea
                       id="edit-description"
@@ -842,14 +815,14 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                       rows={4}
                       defaultValue={editingBookmark.description}
                       required
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none"
+                      className="w-full px-4 py-3 rounded-xl border-0 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all resize-none"
                     />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label htmlFor="edit-major-category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        大カテゴリ
+                      <label htmlFor="edit-major-category" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 ml-1">
+                        Category
                       </label>
                       <input
                         id="edit-major-category"
@@ -857,13 +830,13 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                         type="text"
                         defaultValue={editingBookmark.majorCategory}
                         required
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                        className="w-full px-4 py-3 rounded-xl border-0 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
                       />
                     </div>
 
                     <div>
-                      <label htmlFor="edit-minor-category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        小カテゴリ
+                      <label htmlFor="edit-minor-category" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 ml-1">
+                        Subcategory
                       </label>
                       <input
                         id="edit-minor-category"
@@ -871,24 +844,24 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                         type="text"
                         defaultValue={editingBookmark.minorCategory}
                         required
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                        className="w-full px-4 py-3 rounded-xl border-0 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
                       />
                     </div>
                   </div>
 
-                  <div className="flex justify-end gap-3 pt-4">
+                  <div className="flex justify-end gap-3 pt-6">
                     <button
                       type="button"
                       onClick={() => setEditingBookmark(null)}
-                      className="px-6 py-3 rounded-xl text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 font-medium transition-colors"
+                      className="px-6 py-2.5 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 font-medium transition-colors"
                     >
-                      キャンセル
+                      Cancel
                     </button>
                     <button
                       type="submit"
-                      className="px-6 py-3 rounded-xl text-white bg-blue-500 hover:bg-blue-600 font-medium transition-colors shadow-md hover:shadow-lg"
+                      className="px-6 py-2.5 rounded-xl text-white bg-[#0071e3] hover:bg-[#0077ED] font-medium transition-colors shadow-sm"
                     >
-                      保存
+                      Save Changes
                     </button>
                   </div>
                 </div>

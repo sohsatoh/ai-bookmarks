@@ -31,10 +31,10 @@ pnpm install
 
 ```bash
 # ローカル開発用データベース
-npx wrangler d1 create ai-bookmarks-db
+pnpm wrangler d1 create ai-bookmarks-db
 
 # 本番環境用データベース
-npx wrangler d1 create ai-bookmarks-db --env production
+pnpm wrangler d1 create ai-bookmarks-db --env production
 ```
 
 作成されたデータベースIDを`wrangler.jsonc`の`d1_databases[0].database_id`に設定してください。
@@ -245,7 +245,7 @@ Identity providers:
    }
    ```
 
-3. 環境変数の管理: シークレットは`wrangler secret put`で設定
+3. 環境変数の管理: シークレットは`pnpm wrangler secret put`で設定
 4. ログ監視: Cloudflare Workers Analyticsで異常なアクセスパターンを監視
 5. 定期的なセキュリティ監査: 依存関係の脆弱性チェック（`pnpm audit`）
 

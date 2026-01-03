@@ -13,12 +13,12 @@ export function stripHtmlTags(html: string): string {
   return (
     html
       // script, styleタグとその内容を削除
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
+      .replaceAll(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+      .replaceAll(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
       // その他のHTMLタグを削除
-      .replace(/<[^>]+>/g, " ")
+      .replaceAll(/<[^>]+>/g, " ")
       // 複数の空白を1つに
-      .replace(/\s+/g, " ")
+      .replaceAll(/\s+/g, " ")
       .trim()
   );
 }
@@ -40,7 +40,7 @@ export function decodeHtmlEntities(text: string): string {
     "&nbsp;": " ",
   };
 
-  return text.replace(/&(?:amp|lt|gt|quot|#x27|#x2F|#39|nbsp);/g, (match) => entities[match] || match);
+  return text.replaceAll(/&(?:amp|lt|gt|quot|#x27|#x2F|#39|nbsp);/g, (match) => entities[match] || match);
 }
 
 /**
@@ -55,17 +55,17 @@ export function sanitizeForPrompt(input: string, maxLength: number = 1000): stri
   return (
     input
       // 制御文字を除去（改行とタブ以外）
-      .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, "")
+      .replaceAll(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, "")
       // 連続する改行を1つに
-      .replace(/\n{3,}/g, "\n\n")
+      .replaceAll(/\n{3,}/g, "\n\n")
       // 危険なプロンプトパターンをエスケープ
-      .replace(/```/g, "'''")
-      .replace(/\{/g, "\\{")
-      .replace(/\}/g, "\\}")
+      .replaceAll(/```/g, "'''")
+      .replaceAll(/\{/g, "\\{")
+      .replaceAll(/\}/g, "\\}")
       // システムロール侵害パターンを無効化
-      .replace(/(?:system|assistant|user):/gi, "$&_")
+      .replaceAll(/(?:system|assistant|user):/gi, "$&_")
       // 指示注入パターンを無効化
-      .replace(/(?:ignore|disregard|forget)\s+(?:previous|above|all)/gi, "[removed]")
+      .replaceAll(/(?:ignore|disregard|forget)\s+(?:previous|above|all)/gi, "[removed]")
       .trim()
       .slice(0, maxLength)
   );

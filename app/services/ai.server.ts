@@ -17,7 +17,7 @@ export async function generateBookmarkMetadata(ai: Ai, url: string, pageTitle: s
   const sanitizedMinorCats = existingCategories.minor.slice(0, 10).map((cat) => sanitizeForPrompt(cat, 50));
 
   // コスト削減: プロンプトを簡潔に
-  const systemPrompt = `Webページのカテゴリと説明を生成。既存カテゴリがあれば優先使用。JSON形式で出力:
+  const systemPrompt = `Webページのカテゴリと説明を生成。既存カテゴリがあれば優先使用。descriptionは日本語で出力。JSON形式で出力:
 {"majorCategory":"大分野","minorCategory":"詳細トピック","description":"40文字以内の説明"}`;
 
   const userInput = `

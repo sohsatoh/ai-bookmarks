@@ -1,4 +1,4 @@
-import { Form, useNavigation } from "react-router";
+import { Form, useNavigation, useSearchParams } from "react-router";
 import type { Route } from "./+types/home";
 import {
   getDb,
@@ -25,12 +25,40 @@ export function meta(_args: Route.MetaArgs) {
   ];
 }
 
-export async function loader({ context }: Route.LoaderArgs) {
+export async function loader({ context, request }: Route.LoaderArgs) {
   const db = getDb(context.cloudflare.env.DB);
+  const url = new URL(request.url);
+  const sortBy = url.searchParams.get("sortBy") || "date";
+  const sortOrder = url.searchParams.get("sortOrder") || "desc";
+  
   const bookmarksByCategory = await getAllBookmarks(db);
 
+  // ソート処理
+  const sortedBookmarksByCategory = bookmarksByCategory.map((major) => ({
+    ...major,
+    minorCategories: major.minorCategories.map((minor) => ({
+      ...minor,
+      bookmarks: [...minor.bookmarks].sort((a, b) => {
+        let comparison = 0;
+        
+        if (sortBy === "title") {
+          comparison = a.title.localeCompare(b.title, "ja");
+        } else if (sortBy === "url") {
+          comparison = a.url.localeCompare(b.url);
+        } else {
+          // date
+          comparison = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        }
+        
+        return sortOrder === "asc" ? comparison : -comparison;
+      }),
+    })),
+  }));
+
   return {
-    bookmarksByCategory,
+    bookmarksByCategory: sortedBookmarksByCategory,
+    sortBy,
+    sortOrder,
   };
 }
 
@@ -193,6 +221,24 @@ export async function action({ request, context }: Route.ActionArgs) {
 export default function Home({ loaderData, actionData }: Route.ComponentProps) {
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  const currentSortBy = loaderData.sortBy;
+  const currentSortOrder = loaderData.sortOrder;
+  
+  const handleSortChange = (newSortBy: string) => {
+    const newParams = new URLSearchParams(searchParams);
+    
+    // 同じソート項目をクリックした場合は順序を反転
+    if (newSortBy === currentSortBy) {
+      newParams.set("sortOrder", currentSortOrder === "asc" ? "desc" : "asc");
+    } else {
+      newParams.set("sortBy", newSortBy);
+      newParams.set("sortOrder", "desc");
+    }
+    
+    setSearchParams(newParams);
+  };
 
   return (
     <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
@@ -206,6 +252,56 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
             Cloudflare Workers AIによる自動カテゴリ分類ブックマーク管理
           </p>
         </header>
+
+        {/* ソート機能 */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 mb-4">
+          <div className="flex items-center gap-4">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              並び替え:
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleSortChange("date")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  currentSortBy === "date"
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                }`}
+              >
+                日付
+                {currentSortBy === "date" && (
+                  <span className="ml-1">{currentSortOrder === "asc" ? "↑" : "↓"}</span>
+                )}
+              </button>
+              <button
+                onClick={() => handleSortChange("title")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  currentSortBy === "title"
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                }`}
+              >
+                タイトル
+                {currentSortBy === "title" && (
+                  <span className="ml-1">{currentSortOrder === "asc" ? "↑" : "↓"}</span>
+                )}
+              </button>
+              <button
+                onClick={() => handleSortChange("url")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  currentSortBy === "url"
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                }`}
+              >
+                URL
+                {currentSortBy === "url" && (
+                  <span className="ml-1">{currentSortOrder === "asc" ? "↑" : "↓"}</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
 
         {/* URL入力フォーム */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-8">
@@ -324,9 +420,23 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                                 <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mb-2">
                                   {bookmark.description}
                                 </p>
-                                <p className="text-xs text-gray-500 dark:text-gray-500 truncate">
-                                  {bookmark.url}
-                                </p>
+                                <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-500">
+                                  <span className="truncate flex-1">
+                                    {bookmark.url}
+                                  </span>
+                                  <span className="shrink-0 flex items-center gap-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                      <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                                    </svg>
+                                    {new Date(bookmark.createdAt).toLocaleDateString("ja-JP", {
+                                      year: "numeric",
+                                      month: "2-digit",
+                                      day: "2-digit",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </span>
+                                </div>
                               </a>
                             </div>
 

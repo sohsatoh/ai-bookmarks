@@ -40,6 +40,13 @@ export async function loader({ context, request }: Route.LoaderArgs) {
     getAllCategories(db),
   ]);
 
+  // スター付きブックマークを収集
+  const starredBookmarks = bookmarksByCategory.flatMap((major) =>
+    major.minorCategories.flatMap((minor) =>
+      minor.bookmarks.filter((b) => b.isStarred && !b.isArchived)
+    )
+  );
+
   // ソート処理（スター、アーカイブ、ユーザー指定の順）
   const sortedBookmarksByCategory = bookmarksByCategory.map((major) => ({
     ...major,
@@ -75,6 +82,7 @@ export async function loader({ context, request }: Route.LoaderArgs) {
 
   return {
     bookmarksByCategory: sortedBookmarksByCategory,
+    starredBookmarks,
     allCategories,
     sortBy,
     sortOrder,
@@ -844,6 +852,184 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
           </div>
         ) : (
           <div className="space-y-16">
+            {/* Pinnedセクション */}
+            {loaderData.starredBookmarks.length > 0 && (
+              <div id="pinned" className="space-y-8 scroll-mt-24">
+                <div className="flex items-center gap-3 pb-4 border-b border-gray-200 dark:border-gray-800">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-yellow-500 dark:text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                  <h2 className="text-xl sm:text-2xl md:text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">
+                    Pinned
+                  </h2>
+                  <span className="text-sm text-gray-400">({loaderData.starredBookmarks.length})</span>
+                </div>
+
+                <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                  {loaderData.starredBookmarks.map((bookmark) => {
+                    return (
+                    <div
+                      key={bookmark.id}
+                      className="group relative bg-white dark:bg-gray-900 rounded-2xl p-5 transition-all duration-300 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-white/5 border border-transparent hover:border-gray-100 dark:hover:border-gray-800 flex flex-col"
+                    >
+                      <div className="flex flex-col flex-1 min-h-0">
+                        <div className="flex items-start gap-3 mb-3">
+                          {/* Favicon */}
+                          <div className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800 flex items-center justify-center flex-shrink-0 shadow-inner">
+                            <img
+                              src={`https://www.google.com/s2/favicons?domain=${new URL(bookmark.url).hostname}&sz=64`}
+                              alt=""
+                              className="w-6 h-6 rounded-md"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                              }}
+                            />
+                          </div>
+                          
+                          <a
+                            href={bookmark.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-1 min-w-0 block group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors"
+                          >
+                            <h4 className="font-semibold text-sm sm:text-base md:text-lg text-[#1D1D1F] dark:text-[#F5F5F7] mb-2 line-clamp-2 tracking-tight leading-snug">
+                              {bookmark.title}
+                            </h4>
+                            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-3 leading-relaxed">
+                              {bookmark.description}
+                            </p>
+                            <div className="flex flex-col gap-1 text-[10px] sm:text-xs text-gray-400 dark:text-gray-500 font-medium">
+                              <span className="truncate">
+                                {new URL(bookmark.url).hostname}
+                              </span>
+                              <span>
+                                {new Date(bookmark.createdAt).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                })}
+                              </span>
+                            </div>
+                          </a>
+                        </div>
+
+                        <div className="shrink-0 flex items-center gap-1 justify-end mt-auto pt-2">
+                          {/* 読了ステータスボタン */}
+                          <Form method="post">
+                            <input type="hidden" name="intent" value="toggleReadStatus" />
+                            <input type="hidden" name="bookmarkId" value={bookmark.id} />
+                            <input type="hidden" name="readStatus" value={bookmark.readStatus} />
+                            <button
+                              type="submit"
+                              className="p-2 text-gray-400 hover:text-green-500 dark:hover:text-green-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+                              title={bookmark.readStatus === "read" ? "Mark as unread" : "Mark as read"}
+                            >
+                              {bookmark.readStatus === "read" ? (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 dark:text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                                  <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" />
+                                </svg>
+                              ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                                </svg>
+                              )}
+                            </button>
+                          </Form>
+
+                          {/* スターボタン */}
+                          <Form method="post">
+                            <input type="hidden" name="intent" value="toggleStar" />
+                            <input type="hidden" name="bookmarkId" value={bookmark.id} />
+                            <input type="hidden" name="isStarred" value={bookmark.isStarred.toString()} />
+                            <button
+                              type="submit"
+                              className="p-2 text-gray-400 hover:text-yellow-500 dark:hover:text-yellow-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+                              title={bookmark.isStarred ? "Unstar" : "Star"}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-500 dark:text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                              </svg>
+                            </button>
+                          </Form>
+
+                          {/* アーカイブボタン */}
+                          <Form method="post">
+                            <input type="hidden" name="intent" value="toggleArchive" />
+                            <input type="hidden" name="bookmarkId" value={bookmark.id} />
+                            <input type="hidden" name="isArchived" value={bookmark.isArchived.toString()} />
+                            <button
+                              type="submit"
+                              className="p-2 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+                              title={bookmark.isArchived ? "Unarchive" : "Archive"}
+                            >
+                              {bookmark.isArchived ? (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500 dark:text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                                  <path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4z" />
+                                  <path fillRule="evenodd" d="M3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" clipRule="evenodd" />
+                                </svg>
+                              ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                                </svg>
+                              )}
+                            </button>
+                          </Form>
+
+                          {/* 情報更新ボタン */}
+                          <Form method="post">
+                            <input type="hidden" name="intent" value="refresh" />
+                            <input type="hidden" name="bookmarkId" value={bookmark.id} />
+                            <button
+                              type="submit"
+                              className="p-2 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+                              title="情報を更新"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                            </button>
+                          </Form>
+
+                          {/* 編集ボタン */}
+                          <button
+                            type="button"
+                            onClick={() => setEditingBookmark({
+                              id: bookmark.id,
+                              title: bookmark.title,
+                              description: bookmark.description,
+                              majorCategory: bookmark.majorCategory.name,
+                              minorCategory: bookmark.minorCategory.name,
+                            })}
+                            className="p-2 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+                            title="Edit"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                            </svg>
+                          </button>
+
+                          {/* 削除ボタン */}
+                          <Form method="post">
+                            <input type="hidden" name="intent" value="delete" />
+                            <input type="hidden" name="bookmarkId" value={bookmark.id} />
+                            <button
+                              type="submit"
+                              className="p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                              title="Delete"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                              </svg>
+                            </button>
+                          </Form>
+                        </div>
+                      </div>
+                    </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {loaderData.bookmarksByCategory.map((major) => (
               <div key={major.majorCategory} id={major.majorCategory} className="space-y-8 scroll-mt-24">
                 <h2 className="text-xl sm:text-2xl md:text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight flex items-center gap-3 pb-4 border-b border-gray-200 dark:border-gray-800">

@@ -18,7 +18,7 @@ export async function generateBookmarkMetadata(ai: Ai, url: string, pageTitle: s
 
   // コスト削減: プロンプトを簡潔に
   const systemPrompt = `Webページのカテゴリと説明を生成。既存カテゴリがあれば優先使用。descriptionは日本語で出力。JSON形式で出力:
-{"majorCategory":"大分野","minorCategory":"詳細トピック","description":"40文字以内の説明"}`;
+{"majorCategory":"大分野","minorCategory":"詳細トピック","description":"80文字以内の説明"}`;
 
   const userInput = `
 タイトル: ${sanitizedTitle}
@@ -29,8 +29,8 @@ export async function generateBookmarkMetadata(ai: Ai, url: string, pageTitle: s
   const prompt = systemPrompt + userInput;
 
   try {
-    // コスト削減: 8Bモデル使用、トークン数削減
-    const response = await ai.run("@cf/meta/llama-3-8b-instruct" as any, {
+    // OpenAI GPT 20Bモデルを使用
+    const response = await ai.run("@cf/openai/gpt-oss-20b" as any, {
       prompt,
       max_tokens: 150,
     });

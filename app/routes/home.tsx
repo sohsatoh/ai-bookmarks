@@ -906,13 +906,13 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                         type="text"
                         value={editingBookmark.majorCategory}
                         onChange={(e) => setEditingBookmark({ ...editingBookmark, majorCategory: e.target.value })}
-                        list="major-categories"
+                        list="major-categories-edit"
                         required
                         className="w-full px-4 py-3 rounded-xl border-0 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
                       />
-                      <datalist id="major-categories">
+                      <datalist id="major-categories-edit">
                         {loaderData.allCategories
-                          .filter((c) => c.type === "major")
+                          ?.filter((c) => c.type === "major")
                           .map((c) => (
                             <option key={c.id} value={c.name} />
                           ))}
@@ -929,19 +929,13 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                         type="text"
                         value={editingBookmark.minorCategory}
                         onChange={(e) => setEditingBookmark({ ...editingBookmark, minorCategory: e.target.value })}
-                        list="minor-categories"
+                        list="minor-categories-edit"
                         required
                         className="w-full px-4 py-3 rounded-xl border-0 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
                       />
-                      <datalist id="minor-categories">
+                      <datalist id="minor-categories-edit">
                         {loaderData.allCategories
-                          .filter((c) => {
-                            if (c.type !== "minor") return false;
-                            const majorCat = loaderData.allCategories.find(
-                              (mc) => mc.name === editingBookmark.majorCategory && mc.type === "major"
-                            );
-                            return majorCat ? c.parentId === majorCat.id : true;
-                          })
+                          ?.filter((c) => c.type === "minor")
                           .map((c) => (
                             <option key={c.id} value={c.name} />
                           ))}

@@ -220,7 +220,6 @@ export async function action({ request, context }: Route.ActionArgs) {
         message: title,
       },
     };
-    };
   } catch (error) {
     console.error("Failed to create bookmark:", error);
     return {
@@ -343,32 +342,32 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <ToastContainer toasts={toasts} onDismiss={handleDismissToast} />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* ヘッダー */}
-        <header className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
-            🔖 AI Bookmarks
+        <header className="mb-8 border-b border-gray-200 dark:border-gray-700 pb-6">
+          <h1 className="text-3xl font-semibold text-gray-900 dark:text-white mb-2">
+            Bookmarks
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            Cloudflare Workers AIによる自動カテゴリ分類ブックマーク管理
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            自動カテゴリ分類ブックマーク管理システム
           </p>
         </header>
 
         {/* ソート機能 */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 mb-4">
-          <div className="flex items-center gap-4">
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              並び替え:
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 mb-6">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+              並び替え
             </span>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <button
                 onClick={() => handleSortChange("date")}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
                   currentSortBy === "date"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                    ? "bg-gray-900 dark:bg-white text-white dark:text-gray-900"
+                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                 }`}
               >
                 日付
@@ -378,10 +377,10 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
               </button>
               <button
                 onClick={() => handleSortChange("title")}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
                   currentSortBy === "title"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                    ? "bg-gray-900 dark:bg-white text-white dark:text-gray-900"
+                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                 }`}
               >
                 タイトル
@@ -391,10 +390,10 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
               </button>
               <button
                 onClick={() => handleSortChange("url")}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
                   currentSortBy === "url"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                    ? "bg-gray-900 dark:bg-white text-white dark:text-gray-900"
+                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                 }`}
               >
                 URL
@@ -407,17 +406,17 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
         </div>
 
         {/* URL入力フォーム */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-8">
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 mb-8">
           <Form method="post" className="space-y-4" ref={formRef}>
             <input type="hidden" name="intent" value="add" />
             <div>
               <label
                 htmlFor="url"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide"
               >
-                ブックマークを追加
+                新規ブックマーク
               </label>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-col sm:flex-row">
                 <input
                   type="url"
                   id="url"
@@ -425,17 +424,17 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                   placeholder="https://example.com"
                   required
                   disabled={isSubmitting}
-                  className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded focus:ring-1 focus:ring-gray-900 dark:focus:ring-white focus:border-gray-900 dark:focus:border-white bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-shadow"
                 />
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-6 py-2.5 bg-gray-900 hover:bg-gray-800 dark:bg-white dark:hover:bg-gray-100 text-white dark:text-gray-900 text-sm font-medium rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 whitespace-nowrap"
                 >
                   {isSubmitting ? (
                     <>
                       <svg
-                        className="animate-spin h-5 w-5 text-white"
+                        className="animate-spin h-4 w-4"
                         xmlns="http://www.w3.org/2000/svg"
                         fill="none"
                         viewBox="0 0 24 24"
@@ -454,7 +453,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                           d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                         ></path>
                       </svg>
-                      処理中...
+                      処理中
                     </>
                   ) : (
                     "追加"
@@ -465,16 +464,16 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
 
             {/* エラー・成功メッセージ */}
             {actionData?.error && (
-              <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                <p className="text-red-800 dark:text-red-200 text-sm">
-                  ❌ {actionData.error}
+              <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded">
+                <p className="text-red-800 dark:text-red-200 text-xs">
+                  {actionData.error}
                 </p>
               </div>
             )}
             {actionData?.success && (
-              <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                <p className="text-green-800 dark:text-green-200 text-sm">
-                  ✅ ブックマークを追加しました
+              <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded">
+                <p className="text-green-800 dark:text-green-200 text-xs">
+                  ブックマークを追加しました
                 </p>
               </div>
             )}
@@ -491,19 +490,18 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
         ) : (
           <div className="space-y-8">
             {loaderData.bookmarksByCategory.map((major) => (
-              <div key={major.majorCategory} className="space-y-4">
-                <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 border-b-2 border-blue-500 pb-2">
+              <div key={major.majorCategory} className="space-y-6">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-3 uppercase tracking-wide">
                   {major.majorCategory}
                 </h2>
 
                 {major.minorCategories.map((minor) => (
-                  <div key={minor.minorCategory} className="ml-4 space-y-3">
-                    <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                      <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                  <div key={minor.minorCategory} className="space-y-4">
+                    <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 pl-4 border-l-2 border-gray-300 dark:border-gray-600">
                       {minor.minorCategory}
                     </h3>
 
-                    <div className="ml-6 grid gap-3">
+                    <div className="grid gap-3 sm:grid-cols-1">
                       {minor.bookmarks.map((bookmark) => {
                         const isProcessing = processingBookmarks.some(b => b.id === bookmark.id);
                         const isNewlyAdded = justAdded.includes(bookmark.id);
@@ -511,19 +509,19 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                         return (
                         <div
                           key={bookmark.id}
-                          className={`bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-all duration-500 p-4 border border-gray-200 dark:border-gray-700 group ${
+                          className={`bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-500 transition-all duration-300 p-4 group ${
                             isNewlyAdded ? 'animate-fade-in scale-100' : ''
                           } ${
-                            isProcessing ? 'border-blue-400 dark:border-blue-500 border-2' : ''
+                            isProcessing ? 'border-gray-400 dark:border-gray-500' : ''
                           }`}
                         >
                           {isProcessing && (
-                            <div className="flex items-center gap-2 mb-2 text-blue-600 dark:text-blue-400 text-sm">
-                              <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <div className="flex items-center gap-2 mb-3 text-gray-600 dark:text-gray-400 text-xs">
+                              <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                               </svg>
-                              <span className="font-medium">AIがカテゴリを分析中...</span>
+                              <span>カテゴリを分析中</span>
                             </div>
                           )}
                           <div className="flex items-start justify-between gap-4">
@@ -532,16 +530,16 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                                 href={bookmark.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="block hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                                className="block group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors"
                               >
-                                <h4 className="font-medium text-gray-900 dark:text-white truncate mb-1">
+                                <h4 className="font-medium text-sm text-gray-900 dark:text-white mb-2 line-clamp-1">
                                   {bookmark.title}
                                 </h4>
-                                <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mb-2">
+                                <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-3 leading-relaxed">
                                   {bookmark.description}
                                 </p>
-                                <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-500">
-                                  <span className="truncate flex-1">
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-xs text-gray-500 dark:text-gray-500">
+                                  <span className="truncate break-all">
                                     {bookmark.url}
                                   </span>
                                   <span className="shrink-0 flex items-center gap-1">
@@ -560,7 +558,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                               </a>
                             </div>
 
-                            <div className="shrink-0 flex gap-2">
+                            <div className="shrink-0 flex flex-col sm:flex-row gap-1">
                               {/* スターボタン */}
                               <Form method="post">
                                 <input type="hidden" name="intent" value="toggleStar" />
@@ -568,15 +566,15 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                                 <input type="hidden" name="isStarred" value={bookmark.isStarred.toString()} />
                                 <button
                                   type="submit"
-                                  className="p-2 text-yellow-500 hover:text-yellow-600 dark:text-yellow-400 dark:hover:text-yellow-300 transition-colors"
+                                  className="p-1.5 text-gray-400 hover:text-yellow-500 dark:hover:text-yellow-400 transition-colors"
                                   title={bookmark.isStarred ? "スターを外す" : "スターを付ける"}
                                 >
                                   {bookmark.isStarred ? (
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-yellow-500 dark:text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
                                       <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                                     </svg>
                                   ) : (
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                                       <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                                     </svg>
                                   )}
@@ -593,12 +591,12 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                                 />
                                 <button
                                   type="submit"
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 text-gray-400 hover:text-red-500 dark:hover:text-red-400"
                                   title="削除"
                                 >
                                   <svg
                                     xmlns="http://www.w3.org/2000/svg"
-                                    className="h-5 w-5"
+                                    className="h-4 w-4"
                                     viewBox="0 0 20 20"
                                     fill="currentColor"
                                   >

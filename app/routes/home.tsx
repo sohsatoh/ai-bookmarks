@@ -264,6 +264,86 @@ export async function action({ request, context }: Route.ActionArgs) {
     }
   }
 
+  // 情報更新処理（AIで再生成）
+  if (intent === "refresh") {
+    const bookmarkId = formData.get("bookmarkId");
+    
+    if (!bookmarkId || typeof bookmarkId !== "string") {
+      return { error: "無効なリクエストです" };
+    }
+
+    const id = Number(bookmarkId);
+    if (Number.isNaN(id) || id <= 0) {
+      return { error: "無効なIDです" };
+    }
+
+    try {
+      // 既存ブックマーク情報を取得
+      const existingBookmark = await db
+        .select()
+        .from(bookmarks)
+        .where(eq(bookmarks.id, id))
+        .limit(1);
+
+      if (existingBookmark.length === 0) {
+        return { error: "ブックマークが見つかりません" };
+      }
+
+      const bookmark = existingBookmark[0];
+
+      // ページメタデータを再取得
+      const { title, description, content } = await fetchPageMetadata(bookmark.url);
+      
+      // 既存カテゴリ取得
+      const existingCategories = await getExistingCategories(db);
+
+      // AIでメタデータ生成
+      const metadata = await generateBookmarkMetadata(
+        context.cloudflare.env.AI,
+        bookmark.url,
+        title,
+        description,
+        content,
+        existingCategories
+      );
+
+      // カテゴリを取得または作成
+      const majorCategoryId = await getOrCreateCategory(db, metadata.majorCategory, "major");
+      const minorCategoryId = await getOrCreateCategory(db, metadata.minorCategory, "minor", majorCategoryId);
+
+      // ブックマーク情報を更新
+      await db
+        .update(bookmarks)
+        .set({
+          title,
+          description: metadata.description,
+          majorCategoryId,
+          minorCategoryId,
+          updatedAt: new Date(),
+        })
+        .where(eq(bookmarks.id, id));
+
+      return { 
+        success: true, 
+        toast: { 
+          type: "success" as const, 
+          title: "更新完了", 
+          message: "ブックマーク情報を更新しました" 
+        } 
+      };
+    } catch (error) {
+      console.error("Refresh failed:", error);
+      return { 
+        error: error instanceof Error ? error.message : "情報の更新に失敗しました",
+        toast: {
+          type: "error" as const,
+          title: "エラー",
+          message: error instanceof Error ? error.message : "情報の更新に失敗しました",
+        },
+      };
+    }
+  }
+
   // ブックマーク追加処理
   const url = formData.get("url") as string;
 
@@ -781,6 +861,21 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                                     </svg>
                                   )}
+                                </button>
+                              </Form>
+
+                              {/* 情報更新ボタン */}
+                              <Form method="post">
+                                <input type="hidden" name="intent" value="refresh" />
+                                <input type="hidden" name="bookmarkId" value={bookmark.id} />
+                                <button
+                                  type="submit"
+                                  className="p-2 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+                                  title="情報を更新"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                  </svg>
                                 </button>
                               </Form>
 

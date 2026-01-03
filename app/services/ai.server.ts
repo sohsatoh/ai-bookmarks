@@ -8,13 +8,13 @@ import { sanitizeForPrompt, validateAiResponse } from "./security.server";
  * - Prompt Injection対策済み
  */
 export async function generateBookmarkMetadata(ai: Ai, url: string, pageTitle: string, pageDescription: string, pageContent: string, existingCategories: { major: string[]; minor: string[] }): Promise<AIGeneratedMetadata> {
-  // コスト削減: コンテンツ長を制限
-  const sanitizedTitle = sanitizeForPrompt(pageTitle, 150);
-  const sanitizedDescription = sanitizeForPrompt(pageDescription, 200);
-  const sanitizedContent = sanitizeForPrompt(pageContent, 400);
-  // 既存カテゴリは最大10個まで（プロンプト長を削減）
-  const sanitizedMajorCats = existingCategories.major.slice(0, 10).map((cat) => sanitizeForPrompt(cat, 50));
-  const sanitizedMinorCats = existingCategories.minor.slice(0, 10).map((cat) => sanitizeForPrompt(cat, 50));
+  // コンテンツ長を拡張
+  const sanitizedTitle = sanitizeForPrompt(pageTitle, 300);
+  const sanitizedDescription = sanitizeForPrompt(pageDescription, 500);
+  const sanitizedContent = sanitizeForPrompt(pageContent, 1500);
+  // すべての既存カテゴリを含める
+  const sanitizedMajorCats = existingCategories.major.map((cat) => sanitizeForPrompt(cat, 100));
+  const sanitizedMinorCats = existingCategories.minor.map((cat) => sanitizeForPrompt(cat, 100));
 
   // 既存カテゴリのフォーマットを改善
   const existingMajorList = sanitizedMajorCats.length > 0 ? `\n利用可能な大カテゴリ（このリストから選択してください）:\n${sanitizedMajorCats.map((c, i) => `${i + 1}. ${c}`).join("\n")}` : "";
@@ -34,7 +34,7 @@ export async function generateBookmarkMetadata(ai: Ai, url: string, pageTitle: s
 - 小分類: モバイルアプリセキュリティ、Webセキュリティ...など、より具体的なカテゴリ
 
 出力形式:
-{"majorCategory":"大分類","minorCategory":"小分類","description":"日本語で80文字以内の説明"}`;
+{"majorCategory":"大分類","minorCategory":"小分類","description":"日本語で150文字以内の説明"}`;
 
   const userInput = `【分類対象】
 タイトル: ${sanitizedTitle}
@@ -44,11 +44,11 @@ export async function generateBookmarkMetadata(ai: Ai, url: string, pageTitle: s
   try {
     console.log(`[AI] Starting metadata generation for URL: ${url.substring(0, 50)}...`);
 
-    // OpenAI GPT 20Bモデルを使用（input形式）
-    const response = await ai.run("@cf/openai/gpt-oss-20b", {
+    // OpenAI GPT 120Bモデルを使用（input形式）
+    const response = await ai.run("@cf/openai/gpt-oss-120b", {
       instructions: systemPrompt,
       input: userInput,
-      max_tokens: 150,
+      max_tokens: 300,
     });
 
     console.log(`[AI] Raw response received:`, JSON.stringify(response).substring(0, 200) + "...");
@@ -116,9 +116,9 @@ export async function generateBookmarkMetadata(ai: Ai, url: string, pageTitle: s
 
     console.log(`[AI] Successfully generated metadata`);
     return {
-      majorCategory: metadata.majorCategory.trim().slice(0, 100),
-      minorCategory: metadata.minorCategory.trim().slice(0, 100),
-      description: metadata.description.trim().slice(0, 200), // 最大200文字に制限
+      majorCategory: metadata.majorCategory.trim().slice(0, 150),
+      minorCategory: metadata.minorCategory.trim().slice(0, 150),
+      description: metadata.description.trim().slice(0, 300), // 最大300文字に制限
     };
   } catch (error) {
     console.error("[AI] Metadata generation failed:", error);

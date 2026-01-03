@@ -122,14 +122,18 @@ export async function getAllBookmarks(db: ReturnType<typeof getDb>): Promise<Boo
     minorMap.get(minorCat)!.push(bookmark);
   }
 
-  // 最終的なデータ構造に変換
-  return Array.from(grouped.entries()).map(([majorCategory, minorMap]) => ({
-    majorCategory,
-    minorCategories: Array.from(minorMap.entries()).map(([minorCategory, bookmarks]) => ({
-      minorCategory,
-      bookmarks,
-    })),
-  }));
+  // 最終的なデータ構造に変換（カテゴリは名前順にソート）
+  return Array.from(grouped.entries())
+    .sort(([a], [b]) => a.localeCompare(b, "ja")) // 大カテゴリを名前順にソート
+    .map(([majorCategory, minorMap]) => ({
+      majorCategory,
+      minorCategories: Array.from(minorMap.entries())
+        .sort(([a], [b]) => a.localeCompare(b, "ja")) // 小カテゴリも名前順にソート
+        .map(([minorCategory, bookmarks]) => ({
+          minorCategory,
+          bookmarks,
+        })),
+    }));
 }
 
 /**

@@ -381,6 +381,17 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
   const currentSortOrder = loaderData.sortOrder;
   const [processingCount, setProcessingCount] = useState(0);
   const lastActionDataRef = useRef<typeof actionData | null>(null);
+  const previousBookmarkCountRef = useRef(0);
+  
+  // 現在のブックマーク総数を計算
+  const currentBookmarkCount = loaderData.bookmarksByCategory.reduce(
+    (total, major) => 
+      total + major.minorCategories.reduce(
+        (sum, minor) => sum + minor.bookmarks.length, 
+        0
+      ),
+    0
+  );
   
   // 処理中のブックマークがある場合、定期的にリフレッシュ
   useEffect(() => {
@@ -392,6 +403,22 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
       return () => clearInterval(interval);
     }
   }, [processingCount, revalidator]);
+  
+  // ブックマーク数の変化を検出して完了トーストを表示
+  useEffect(() => {
+    if (processingCount > 0 && currentBookmarkCount > previousBookmarkCountRef.current) {
+      // 新しいブックマークが追加された
+      const toastId = Date.now().toString();
+      setToasts(prev => [...prev, {
+        id: toastId,
+        type: "success" as const,
+        title: "完了",
+        message: "ブックマークの追加が完了しました",
+      }]);
+      setProcessingCount(prev => Math.max(0, prev - 1));
+    }
+    previousBookmarkCountRef.current = currentBookmarkCount;
+  }, [currentBookmarkCount, processingCount]);
   
   // 新しく追加されたブックマークのアニメーションとトースト
   useEffect(() => {
@@ -417,10 +444,12 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
         if (actionData.processing) {
           setProcessingCount(prev => prev + 1);
           
-          // 30秒後に処理完了と見なして定期リフレッシュを停止
+          // 30秒後にタイムアウトと見なして定期リフレッシュを停止
           setTimeout(() => {
-            setProcessingCount(prev => Math.max(0, prev - 1));
-            revalidator.revalidate();
+            if (processingCount > 0) {
+              setProcessingCount(prev => Math.max(0, prev - 1));
+              revalidator.revalidate();
+            }
           }, 30000);
         } else {
           // 即座に完了した場合

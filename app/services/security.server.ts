@@ -1,3 +1,5 @@
+import { SECURITY_CONFIG } from "~/constants";
+
 /**
  * セキュリティユーティリティ関数
  * Cloudflare Workers環境向け（DOM APIなし）
@@ -49,7 +51,7 @@ export function decodeHtmlEntities(text: string): string {
  * - プロンプトインジェクション用のキーワードをエスケープ
  * - 長さ制限
  */
-export function sanitizeForPrompt(input: string, maxLength: number = 1000): string {
+export function sanitizeForPrompt(input: string, maxLength: number = SECURITY_CONFIG.DEFAULT_SANITIZED_TEXT_MAX_LENGTH): string {
   if (!input) return "";
 
   return (
@@ -142,7 +144,7 @@ export function validateUrlStrict(urlString: string): { valid: boolean; error?: 
     const url = new URL(trimmed);
 
     // HTTPまたはHTTPSのみ許可
-    if (!["http:", "https:"].includes(url.protocol)) {
+    if (!SECURITY_CONFIG.ALLOWED_URL_PROTOCOLS.includes(url.protocol as "http:" | "https:")) {
       return { valid: false, error: "HTTPまたはHTTPSのURLのみ対応しています" };
     }
 
@@ -153,9 +155,8 @@ export function validateUrlStrict(urlString: string): { valid: boolean; error?: 
 
     // ローカルホスト、プライベートIPへのアクセスを防ぐ（SSRF対策）
     const hostname = url.hostname.toLowerCase();
-    const privatePatterns = [/^localhost$/i, /^127\./, /^10\./, /^172\.(1[6-9]|2[0-9]|3[0-1])\./, /^192\.168\./, /^169\.254\./, /^::1$/, /^fe80:/i];
 
-    for (const pattern of privatePatterns) {
+    for (const pattern of SECURITY_CONFIG.BLOCKED_IP_PATTERNS) {
       if (pattern.test(hostname)) {
         return { valid: false, error: "プライベートIPアドレスは使用できません" };
       }

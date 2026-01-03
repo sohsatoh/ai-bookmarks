@@ -1,5 +1,6 @@
 import type { AIGeneratedMetadata } from "~/types/bookmark";
 import { sanitizeForPrompt, validateAiResponse } from "./security.server";
+import { AI_CONFIG } from "~/constants";
 
 /**
  * Workers AIを使用してURLからメタデータを生成
@@ -9,12 +10,12 @@ import { sanitizeForPrompt, validateAiResponse } from "./security.server";
  */
 export async function generateBookmarkMetadata(ai: Ai, url: string, pageTitle: string, pageDescription: string, pageContent: string, existingCategories: { major: string[]; minor: string[] }): Promise<AIGeneratedMetadata> {
   // コンテンツ長を拡張
-  const sanitizedTitle = sanitizeForPrompt(pageTitle, 300);
-  const sanitizedDescription = sanitizeForPrompt(pageDescription, 500);
-  const sanitizedContent = sanitizeForPrompt(pageContent, 1500);
+  const sanitizedTitle = sanitizeForPrompt(pageTitle, AI_CONFIG.TITLE_MAX_LENGTH);
+  const sanitizedDescription = sanitizeForPrompt(pageDescription, AI_CONFIG.DESCRIPTION_MAX_LENGTH);
+  const sanitizedContent = sanitizeForPrompt(pageContent, AI_CONFIG.CONTENT_MAX_LENGTH);
   // すべての既存カテゴリを含める
-  const sanitizedMajorCats = existingCategories.major.map((cat) => sanitizeForPrompt(cat, 100));
-  const sanitizedMinorCats = existingCategories.minor.map((cat) => sanitizeForPrompt(cat, 100));
+  const sanitizedMajorCats = existingCategories.major.map((cat) => sanitizeForPrompt(cat, AI_CONFIG.CATEGORY_MAX_LENGTH));
+  const sanitizedMinorCats = existingCategories.minor.map((cat) => sanitizeForPrompt(cat, AI_CONFIG.CATEGORY_MAX_LENGTH));
 
   // 既存カテゴリのフォーマットを改善
   const existingMajorList = sanitizedMajorCats.length > 0 ? `\n利用可能な大カテゴリ（このリストから選択してください）:\n${sanitizedMajorCats.map((c, i) => `${i + 1}. ${c}`).join("\n")}` : "";
@@ -45,10 +46,10 @@ export async function generateBookmarkMetadata(ai: Ai, url: string, pageTitle: s
     console.log(`[AI] Starting metadata generation for URL: ${url.substring(0, 50)}...`);
 
     // OpenAI GPT 120Bモデルを使用（input形式）
-    const response = await ai.run("@cf/openai/gpt-oss-120b", {
+    const response = await ai.run(AI_CONFIG.MODEL_NAME, {
       instructions: systemPrompt,
       input: userInput,
-      max_tokens: 300,
+      max_tokens: AI_CONFIG.MAX_TOKENS,
     });
 
     console.log(`[AI] Raw response received:`, JSON.stringify(response).substring(0, 200) + "...");

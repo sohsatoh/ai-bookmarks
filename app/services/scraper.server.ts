@@ -1,4 +1,5 @@
 import { validateUrlStrict, stripHtmlTags, decodeHtmlEntities } from "./security.server";
+import { SCRAPER_CONFIG } from "~/constants";
 
 /**
  * URLからページタイトルとコンテンツを取得
@@ -18,19 +19,19 @@ export async function fetchPageMetadata(url: string): Promise<{
   try {
     const response = await fetch(url, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; BookmarkBot/1.0; +https://example.com/bot)",
+        "User-Agent": SCRAPER_CONFIG.USER_AGENT,
       },
       // DoS対策: タイムアウト設定
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(SCRAPER_CONFIG.FETCH_TIMEOUT_MS),
     });
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    // DoS対策: コンテンツサイズの制限（5MB）
+    // DoS対策: コンテンツサイズの制限
     const contentLength = response.headers.get("content-length");
-    if (contentLength && Number.parseInt(contentLength) > 5 * 1024 * 1024) {
+    if (contentLength && Number.parseInt(contentLength) > SCRAPER_CONFIG.MAX_CONTENT_SIZE_BYTES) {
       throw new Error("コンテンツサイズが大きすぎます");
     }
 
@@ -68,18 +69,18 @@ export async function fetchPageMetadata(url: string): Promise<{
       bodyContent = stripHtmlTags(decodeHtmlEntities(cleanedBody))
         .replace(/\s+/g, " ") // 連続する空白を1つに
         .trim()
-        .slice(0, 1500); // AI分析用に1500文字まで取得
+        .slice(0, SCRAPER_CONFIG.BODY_MAX_LENGTH); // AI分析用に取得
     }
 
     const rawTitle = titleMatch ? titleMatch[1].trim() : new URL(url).hostname;
     const rawDescription = descMatch ? descMatch[1].trim() : "";
 
     // XSS対策: HTMLタグを除去してテキストのみ抽出
-    const title = stripHtmlTags(decodeHtmlEntities(rawTitle)).slice(0, 150);
-    const description = stripHtmlTags(decodeHtmlEntities(rawDescription)).slice(0, 300);
+    const title = stripHtmlTags(decodeHtmlEntities(rawTitle)).slice(0, SCRAPER_CONFIG.TITLE_MAX_LENGTH);
+    const description = stripHtmlTags(decodeHtmlEntities(rawDescription)).slice(0, SCRAPER_CONFIG.DESCRIPTION_MAX_LENGTH);
 
     // コンテンツを結合（AI分析用）
-    const content = bodyContent || [title, description].filter(Boolean).join(" ").slice(0, 1500); // 最大1500文字
+    const content = bodyContent || [title, description].filter(Boolean).join(" ").slice(0, SCRAPER_CONFIG.CONTENT_MAX_LENGTH);
 
     return {
       title: title || "Untitled",

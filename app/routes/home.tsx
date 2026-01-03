@@ -17,6 +17,7 @@ import { generateBookmarkMetadata } from "~/services/ai.server";
 import { fetchPageMetadata, validateUrl } from "~/services/scraper.server";
 import { checkRateLimit, getClientIp } from "~/services/rate-limit.server";
 import { ToastContainer, type ToastMessage } from "~/components/Toast";
+import { UI_CONFIG } from "~/constants";
 
 export function meta(_args: Route.MetaArgs) {
   return [
@@ -586,7 +587,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
     if (processingCount > 0) {
       const interval = setInterval(() => {
         revalidator.revalidate();
-      }, 8000); // 8秒ごとにリフレッシュ
+      }, UI_CONFIG.POLLING_INTERVAL_MS);
       
       return () => clearInterval(interval);
     }

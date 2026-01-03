@@ -48,6 +48,13 @@ export async function getExistingCategories(db: ReturnType<typeof getDb>): Promi
 }
 
 /**
+ * 全カテゴリ情報を取得（編集画面用）
+ */
+export async function getAllCategories(db: ReturnType<typeof getDb>) {
+  return await db.select().from(categories);
+}
+
+/**
  * ブックマークを作成
  */
 export async function createBookmark(

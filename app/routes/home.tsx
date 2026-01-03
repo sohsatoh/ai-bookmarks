@@ -7,6 +7,7 @@ import {
   createBookmark,
   getOrCreateCategory,
   getExistingCategories,
+  getAllCategories,
   checkDuplicateUrl,
   deleteBookmark,
 } from "~/services/db.server";
@@ -34,6 +35,7 @@ export async function loader({ context, request }: Route.LoaderArgs) {
   const sortOrder = url.searchParams.get("sortOrder") || "desc";
   
   const bookmarksByCategory = await getAllBookmarks(db);
+  const allCategories = await getAllCategories(db);
 
   // ソート処理（スター、アーカイブ、ユーザー指定の順）
   const sortedBookmarksByCategory = bookmarksByCategory.map((major) => ({
@@ -70,6 +72,7 @@ export async function loader({ context, request }: Route.LoaderArgs) {
 
   return {
     bookmarksByCategory: sortedBookmarksByCategory,
+    allCategories,
     sortBy,
     sortOrder,
   };
@@ -463,9 +466,6 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
           <h1 className="text-xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">
             Bookmarks
           </h1>
-          <div className="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-200/50 dark:bg-gray-800/50 px-3 py-1 rounded-full">
-            AI Powered
-          </div>
         </div>
       </div>
 
@@ -831,10 +831,19 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                         id="edit-major-category"
                         name="majorCategory"
                         type="text"
-                        defaultValue={editingBookmark.majorCategory}
+                        value={editingBookmark.majorCategory}
+                        onChange={(e) => setEditingBookmark({ ...editingBookmark, majorCategory: e.target.value })}
+                        list="major-categories"
                         required
                         className="w-full px-4 py-3 rounded-xl border-0 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
                       />
+                      <datalist id="major-categories">
+                        {loaderData.allCategories
+                          .filter((c) => c.type === "major")
+                          .map((c) => (
+                            <option key={c.id} value={c.name} />
+                          ))}
+                      </datalist>
                     </div>
 
                     <div>
@@ -845,10 +854,25 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                         id="edit-minor-category"
                         name="minorCategory"
                         type="text"
-                        defaultValue={editingBookmark.minorCategory}
+                        value={editingBookmark.minorCategory}
+                        onChange={(e) => setEditingBookmark({ ...editingBookmark, minorCategory: e.target.value })}
+                        list="minor-categories"
                         required
                         className="w-full px-4 py-3 rounded-xl border-0 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
                       />
+                      <datalist id="minor-categories">
+                        {loaderData.allCategories
+                          .filter((c) => {
+                            if (c.type !== "minor") return false;
+                            const majorCat = loaderData.allCategories.find(
+                              (mc) => mc.name === editingBookmark.majorCategory && mc.type === "major"
+                            );
+                            return majorCat ? c.parentId === majorCat.id : true;
+                          })
+                          .map((c) => (
+                            <option key={c.id} value={c.name} />
+                          ))}
+                      </datalist>
                     </div>
                   </div>
 

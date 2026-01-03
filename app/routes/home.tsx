@@ -88,7 +88,7 @@ export async function action({ request, context }: Route.ActionArgs) {
 
   try {
     // 1. ページメタデータ取得
-    const { title, content } = await fetchPageMetadata(url);
+    const { title, description, content } = await fetchPageMetadata(url);
 
     // 2. 既存カテゴリ取得
     const existingCategories = await getExistingCategories(db);
@@ -98,6 +98,7 @@ export async function action({ request, context }: Route.ActionArgs) {
       context.cloudflare.env.AI,
       url,
       title,
+      description,
       content,
       existingCategories
     );

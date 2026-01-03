@@ -7,10 +7,11 @@ import { sanitizeForPrompt, validateAiResponse } from "./security.server";
  * - 短い説明文を生成
  * - Prompt Injection対策済み
  */
-export async function generateBookmarkMetadata(ai: Ai, url: string, pageTitle: string, pageContent: string, existingCategories: { major: string[]; minor: string[] }): Promise<AIGeneratedMetadata> {
+export async function generateBookmarkMetadata(ai: Ai, url: string, pageTitle: string, pageDescription: string, pageContent: string, existingCategories: { major: string[]; minor: string[] }): Promise<AIGeneratedMetadata> {
   // コスト削減: コンテンツ長を制限
   const sanitizedUrl = sanitizeForPrompt(url, 300);
   const sanitizedTitle = sanitizeForPrompt(pageTitle, 150);
+  const sanitizedDescription = sanitizeForPrompt(pageDescription, 200);
   const sanitizedContent = sanitizeForPrompt(pageContent, 400);
   // 既存カテゴリは最大10個まで（プロンプト長を削減）
   const sanitizedMajorCats = existingCategories.major.slice(0, 10).map((cat) => sanitizeForPrompt(cat, 50));
@@ -22,6 +23,7 @@ export async function generateBookmarkMetadata(ai: Ai, url: string, pageTitle: s
 
   const userInput = `
 タイトル: ${sanitizedTitle}
+ページ説明: ${sanitizedDescription}
 内容: ${sanitizedContent}
 既存大: ${sanitizedMajorCats.join(",") || "なし"}
 既存小: ${sanitizedMinorCats.join(",") || "なし"}`;

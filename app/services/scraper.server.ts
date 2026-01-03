@@ -6,6 +6,7 @@ import { validateUrlStrict, stripHtmlTags, decodeHtmlEntities } from "./security
  */
 export async function fetchPageMetadata(url: string): Promise<{
   title: string;
+  description: string;
   content: string;
 }> {
   // URL検証（SSRF対策）
@@ -57,6 +58,7 @@ export async function fetchPageMetadata(url: string): Promise<{
 
     return {
       title: title || "Untitled",
+      description: description || "",
       content: content || title || "No content",
     };
   } catch (error) {
@@ -65,6 +67,7 @@ export async function fetchPageMetadata(url: string): Promise<{
     const fallbackTitle = new URL(url).hostname;
     return {
       title: fallbackTitle,
+      description: "",
       content: fallbackTitle,
     };
   }

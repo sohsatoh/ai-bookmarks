@@ -10,7 +10,8 @@ import {
   deleteBookmark,
 } from "~/services/db.server";
 import { generateBookmarkMetadata } from "~/services/ai.server";
-import { fetchPageMetadata, validateUrl } from "~/services/scraper.server";
+import { fetchPageMetadata } from "~/services/scraper.server";
+import { validateUrlStrict, validateTextInput } from "~/services/security.server";
 
 export function meta(_args: Route.MetaArgs) {
   return [
@@ -40,31 +41,48 @@ export async function action({ request, context }: Route.ActionArgs) {
   // 削除処理
   if (intent === "delete") {
     const bookmarkId = formData.get("bookmarkId");
-    if (bookmarkId) {
-      await deleteBookmark(db, Number(bookmarkId));
+    
+    // 入力検証
+    if (!bookmarkId || typeof bookmarkId !== "string") {
+      return { error: "無効なリクエストです" };
     }
-    return { success: true };
+
+    const id = Number(bookmarkId);
+    if (isNaN(id) || id <= 0) {
+      return { error: "無効なIDです" };
+    }
+
+    try {
+      await deleteBookmark(db, id);
+      return { success: true };
+    } catch (error) {
+      console.error("Delete failed:", error);
+      return { error: "削除に失敗しました" };
+    }
   }
 
   // ブックマーク追加処理
   const url = formData.get("url") as string;
 
-  if (!url) {
+  // 基本的な入力チェック
+  if (!url || typeof url !== "string") {
     return {
       error: "URLを入力してください",
     };
   }
 
-  // URL検証
-  const validation = validateUrl(url);
+  // URL検証（強化版）
+  const validation = validateUrlStrict(url);
   if (!validation.valid) {
     return {
-      error: validation.error,
+      error: validation.error || "URLが無効です",
     };
   }
 
+  const sanitizedUrl = validation.sanitizedUrl!;
+
   // 重複チェック
-  const isDuplicate = await checkDuplicateUrl(db, url);
+  const isDuplicate = await checkDuplicateUrl(db, sanitizedUrl);
   if (isDuplicate) {
     return {
       error: "このURLは既に登録されています",
@@ -73,7 +91,7 @@ export async function action({ request, context }: Route.ActionArgs) {
 
   try {
     // 1. ページメタデータ取得
-    const { title, content } = await fetchPageMetadata(url);
+    const { title, content } = await fetchPageMetadata(sanitizedUrl);
 
     // 2. 既存カテゴリ取得
     const existingCategories = await getExistingCategories(db);
@@ -81,7 +99,7 @@ export async function action({ request, context }: Route.ActionArgs) {
     // 3. AI でメタデータ生成
     const metadata = await generateBookmarkMetadata(
       context.cloudflare.env.AI,
-      url,
+      sanitizedUrl,
       title,
       content,
       existingCategories
@@ -102,7 +120,7 @@ export async function action({ request, context }: Route.ActionArgs) {
 
     // 5. ブックマーク作成
     await createBookmark(db, {
-      url,
+      url: sanitizedUrl,
       title,
       description: metadata.description,
       majorCategoryId,

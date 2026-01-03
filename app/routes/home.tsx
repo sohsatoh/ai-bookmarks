@@ -1,4 +1,5 @@
-import { Form, useNavigation, useSearchParams } from "react-router";
+import { Form, useNavigation, useSearchParams, useRevalidator } from "react-router";
+import { useEffect, useState } from "react";
 import type { Route } from "./+types/home";
 import {
   getDb,
@@ -222,9 +223,54 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
   const [searchParams, setSearchParams] = useSearchParams();
+  const revalidator = useRevalidator();
+  const [justAdded, setJustAdded] = useState<number[]>([]);
   
   const currentSortBy = loaderData.sortBy;
   const currentSortOrder = loaderData.sortOrder;
+  
+  // AI処理中のブックマークを検出（未分類カテゴリで直近5分以内）
+  const processingBookmarks = loaderData.bookmarksByCategory
+    .flatMap(major => major.minorCategories.flatMap(minor => minor.bookmarks))
+    .filter(bookmark => {
+      const isRecent = Date.now() - new Date(bookmark.createdAt).getTime() < 5 * 60 * 1000; // 5分以内
+      const isUncategorized = bookmark.majorCategory.name === "未分類";
+      return isRecent && isUncategorized;
+    });
+  
+  // 処理中のブックマークがある場合、定期的にリフレッシュ
+  useEffect(() => {
+    if (processingBookmarks.length > 0) {
+      const interval = setInterval(() => {
+        revalidator.revalidate();
+      }, 3000); // 3秒ごとにリフレッシュ
+      
+      return () => clearInterval(interval);
+    }
+  }, [processingBookmarks.length, revalidator]);
+  
+  // 新しく追加されたブックマークのアニメーション
+  useEffect(() => {
+    if (actionData?.success && !isSubmitting) {
+      // 成功後にリフレッシュして最新のブックマークを取得
+      revalidator.revalidate();
+      
+      // 最新のブックマークをjustAddedに追加（最初の1件）
+      const allBookmarks = loaderData.bookmarksByCategory
+        .flatMap(major => major.minorCategories.flatMap(minor => minor.bookmarks));
+      if (allBookmarks.length > 0) {
+        const newestBookmark = allBookmarks.sort((a, b) => 
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        )[0];
+        setJustAdded(prev => [...prev, newestBookmark.id]);
+        
+        // 3秒後にアニメーションを解除
+        setTimeout(() => {
+          setJustAdded(prev => prev.filter(id => id !== newestBookmark.id));
+        }, 3000);
+      }
+    }
+  }, [actionData?.success, isSubmitting, revalidator]);
   
   const handleSortChange = (newSortBy: string) => {
     const newParams = new URLSearchParams(searchParams);
@@ -401,11 +447,28 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                     </h3>
 
                     <div className="ml-6 grid gap-3">
-                      {minor.bookmarks.map((bookmark) => (
+                      {minor.bookmarks.map((bookmark) => {
+                        const isProcessing = processingBookmarks.some(b => b.id === bookmark.id);
+                        const isNewlyAdded = justAdded.includes(bookmark.id);
+                        
+                        return (
                         <div
                           key={bookmark.id}
-                          className="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow p-4 border border-gray-200 dark:border-gray-700 group"
+                          className={`bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-all duration-500 p-4 border border-gray-200 dark:border-gray-700 group ${
+                            isNewlyAdded ? 'animate-fade-in scale-100' : ''
+                          } ${
+                            isProcessing ? 'border-blue-400 dark:border-blue-500 border-2' : ''
+                          }`}
                         >
+                          {isProcessing && (
+                            <div className="flex items-center gap-2 mb-2 text-blue-600 dark:text-blue-400 text-sm">
+                              <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              <span className="font-medium">AIがカテゴリを分析中...</span>
+                            </div>
+                          )}
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1 min-w-0">
                               <a
@@ -468,7 +531,8 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                             </Form>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 ))}

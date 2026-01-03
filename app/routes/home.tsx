@@ -976,6 +976,97 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
     setDragOverItem(null);
   };
 
+  /**
+   * ブックマークを上下に移動
+   */
+  const moveBookmark = async (bookmarkId: number, direction: 'up' | 'down', minorCategoryId: number) => {
+    // 該当するカテゴリを見つける
+    for (const major of displayBookmarks) {
+      for (const minor of major.minorCategories) {
+        if (minor.minorCategoryId === minorCategoryId) {
+          const bookmarks = [...minor.bookmarks];
+          const currentIndex = bookmarks.findIndex(b => b.id === bookmarkId);
+          
+          if (currentIndex === -1) return;
+          
+          // 境界チェック
+          if (direction === 'up' && currentIndex === 0) return;
+          if (direction === 'down' && currentIndex === bookmarks.length - 1) return;
+          
+          // 移動先のindex
+          const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+          
+          // 配列を並び替え
+          [bookmarks[currentIndex], bookmarks[targetIndex]] = [bookmarks[targetIndex], bookmarks[currentIndex]];
+          
+          // 楽観的UI更新
+          setOptimisticBookmarks(prevBookmarks => {
+            const newBookmarks = prevBookmarks.map(maj => ({
+              ...maj,
+              minorCategories: maj.minorCategories.map(min => {
+                if (min.minorCategoryId === minorCategoryId) {
+                  return { ...min, bookmarks };
+                }
+                return min;
+              })
+            }));
+            return newBookmarks;
+          });
+          
+          // 新しい順序を計算
+          const orders = bookmarks.map((bookmark, index) => ({
+            id: bookmark.id,
+            order: index
+          }));
+          
+          // サーバーに送信
+          const formData = new FormData();
+          formData.append('intent', 'reorderBookmarks');
+          formData.append('orders', JSON.stringify(orders));
+          
+          submit(formData, { method: 'post', action: '/?index' });
+          return;
+        }
+      }
+    }
+  };
+
+  /**
+   * カテゴリを上下に移動
+   */
+  const moveCategory = async (categoryId: number, direction: 'up' | 'down') => {
+    const categories = [...displayBookmarks];
+    const currentIndex = categories.findIndex(c => c.majorCategoryId === categoryId);
+    
+    if (currentIndex === -1) return;
+    
+    // 境界チェック
+    if (direction === 'up' && currentIndex === 0) return;
+    if (direction === 'down' && currentIndex === categories.length - 1) return;
+    
+    // 移動先のindex
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    
+    // 配列を並び替え
+    [categories[currentIndex], categories[targetIndex]] = [categories[targetIndex], categories[currentIndex]];
+    
+    // 楽観的UI更新
+    setOptimisticBookmarks(categories);
+    
+    // 新しい順序を計算
+    const orders = categories.map((category, index) => ({
+      id: category.majorCategoryId,
+      order: index
+    }));
+    
+    // サーバーに送信
+    const formData = new FormData();
+    formData.append('intent', 'reorderCategories');
+    formData.append('orders', JSON.stringify(orders));
+    
+    submit(formData, { method: 'post', action: '/?index' });
+  };
+
   return (
     <div className="min-h-screen bg-[#F5F5F7] dark:bg-black transition-colors duration-500">
       <ToastContainer toasts={toasts} onDismiss={handleDismissToast} />
@@ -1354,7 +1445,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
               const showCategoryAfterLine = isCategoryDragOver && dragOverItem?.position === 'after';
               
               return (
-              <div key={major.majorCategory} id={major.majorCategory} className="space-y-8 scroll-mt-24 relative">
+              <div key={major.majorCategory} id={major.majorCategory} className="space-y-8 scroll-mt-24 relative group">
                 {/* カテゴリ挿入位置インジケーター（前） */}
                 {showCategoryBeforeLine && (
                   <div className="absolute -top-4 left-0 right-0 h-1 bg-blue-500 dark:bg-blue-400 rounded-full z-10 shadow-lg animate-pulse" />
@@ -1377,7 +1468,40 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                   <svg className="w-5 h-5 text-gray-400 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9h8M8 15h8" />
                   </svg>
-                  {major.majorCategory}
+                  <span className="flex-1">{major.majorCategory}</span>
+                  
+                  {/* カテゴリ並び替えボタン */}
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        moveCategory(major.majorCategoryId, 'up');
+                      }}
+                      disabled={majorIndex === 0}
+                      className="p-1.5 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="カテゴリを上に移動"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                      </svg>
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        moveCategory(major.majorCategoryId, 'down');
+                      }}
+                      disabled={majorIndex === displayBookmarks.length - 1}
+                      className="p-1.5 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="カテゴリを下に移動"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  </div>
                 </h2>
 
                 {major.minorCategories.map((minor) => (
@@ -1484,6 +1608,35 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                                   )}
                                 </button>
                               </Form>
+
+                              {/* 並び替えボタン */}
+                              <div className="flex items-center border-l border-gray-200 dark:border-gray-700 pl-1 ml-1">
+                                {/* 上に移動ボタン */}
+                                <button
+                                  type="button"
+                                  onClick={() => moveBookmark(bookmark.id, 'up', minor.minorCategoryId)}
+                                  disabled={index === 0}
+                                  className="p-2 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed"
+                                  title="上に移動"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                                  </svg>
+                                </button>
+                                
+                                {/* 下に移動ボタン */}
+                                <button
+                                  type="button"
+                                  onClick={() => moveBookmark(bookmark.id, 'down', minor.minorCategoryId)}
+                                  disabled={index === minor.bookmarks.length - 1}
+                                  className="p-2 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed"
+                                  title="下に移動"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </button>
+                              </div>
 
                               {/* スターボタン */}
                               <Form method="post">

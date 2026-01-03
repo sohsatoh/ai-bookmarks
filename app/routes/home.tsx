@@ -1106,46 +1106,46 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                       <label htmlFor="edit-major-category" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 ml-1">
                         Category
                       </label>
-                      <input
+                      <select
                         id="edit-major-category"
                         name="majorCategory"
-                        type="text"
                         value={editingBookmark.majorCategory}
                         onChange={(e) => setEditingBookmark({ ...editingBookmark, majorCategory: e.target.value })}
-                        list="major-categories-edit"
                         required
-                        className="w-full px-4 py-3 rounded-xl border-0 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-                      />
-                      <datalist id="major-categories-edit">
+                        className="w-full px-4 py-3 rounded-xl border-0 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all appearance-none cursor-pointer"
+                      >
+                        <option value="">選択してください</option>
                         {loaderData.allCategories
                           ?.filter((c) => c.type === "major")
                           .map((c) => (
-                            <option key={c.id} value={c.name} />
+                            <option key={c.id} value={c.name}>
+                              {c.name}
+                            </option>
                           ))}
-                      </datalist>
+                      </select>
                     </div>
 
                     <div>
                       <label htmlFor="edit-minor-category" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 ml-1">
                         Subcategory
                       </label>
-                      <input
+                      <select
                         id="edit-minor-category"
                         name="minorCategory"
-                        type="text"
                         value={editingBookmark.minorCategory}
                         onChange={(e) => setEditingBookmark({ ...editingBookmark, minorCategory: e.target.value })}
-                        list="minor-categories-edit"
                         required
-                        className="w-full px-4 py-3 rounded-xl border-0 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-                      />
-                      <datalist id="minor-categories-edit">
+                        className="w-full px-4 py-3 rounded-xl border-0 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all appearance-none cursor-pointer"
+                      >
+                        <option value="">選択してください</option>
                         {loaderData.allCategories
                           ?.filter((c) => c.type === "minor")
                           .map((c) => (
-                            <option key={c.id} value={c.name} />
+                            <option key={c.id} value={c.name}>
+                              {c.name}
+                            </option>
                           ))}
-                      </datalist>
+                      </select>
                     </div>
                   </div>
 

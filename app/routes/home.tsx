@@ -906,7 +906,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                               </a>
                             </div>
 
-                            <div className="shrink-0 flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity duration-200 mt-auto pt-2">
+                            <div className="shrink-0 flex items-center gap-1 justify-end mt-auto pt-2">
                               {/* 読了ステータスボタン */}
                               <Form method="post">
                                 <input type="hidden" name="intent" value="toggleReadStatus" />

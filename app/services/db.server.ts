@@ -59,7 +59,7 @@ export async function createBookmark(
     minorCategoryId: number;
     userId?: string | null;
   }
-): Promise<number> {
+): Promise<{ id: number }> {
   const result = await db
     .insert(bookmarks)
     .values({
@@ -68,7 +68,7 @@ export async function createBookmark(
     })
     .returning({ id: bookmarks.id });
 
-  return result[0].id;
+  return result[0];
 }
 
 /**

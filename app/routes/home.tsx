@@ -9,6 +9,8 @@ import {
   checkDuplicateUrl,
   deleteBookmark,
 } from "~/services/db.server";
+import { bookmarks } from "~/db/schema";
+import { eq } from "drizzle-orm";
 import { generateBookmarkMetadata } from "~/services/ai.server";
 import { fetchPageMetadata, validateUrl } from "~/services/scraper.server";
 
@@ -90,40 +92,70 @@ export async function action({ request, context }: Route.ActionArgs) {
     // 1. ページメタデータ取得
     const { title, description, content } = await fetchPageMetadata(url);
 
-    // 2. 既存カテゴリ取得
-    const existingCategories = await getExistingCategories(db);
-
-    // 3. AI でメタデータ生成
-    const metadata = await generateBookmarkMetadata(
-      context.cloudflare.env.AI,
-      url,
-      title,
-      description,
-      content,
-      existingCategories
-    );
-
-    // 4. カテゴリを取得または作成
-    const majorCategoryId = await getOrCreateCategory(
+    // 2. 暫定カテゴリで先にブックマークを保存（高速レスポンス）
+    const domain = new URL(url).hostname;
+    const tempMajorCategoryId = await getOrCreateCategory(
       db,
-      metadata.majorCategory,
+      "未分類",
       "major"
     );
-    const minorCategoryId = await getOrCreateCategory(
+    const tempMinorCategoryId = await getOrCreateCategory(
       db,
-      metadata.minorCategory,
+      domain,
       "minor",
-      majorCategoryId
+      tempMajorCategoryId
     );
 
-    // 5. ブックマーク作成
-    await createBookmark(db, {
+    const bookmarkResult = await createBookmark(db, {
       url: url,
       title,
-      description: metadata.description,
-      majorCategoryId,
-      minorCategoryId,
+      description: title.slice(0, 60),
+      majorCategoryId: tempMajorCategoryId,
+      minorCategoryId: tempMinorCategoryId,
     });
+
+    // 3. AI処理をバックグラウンドで実行（waitUntilで非同期処理）
+    context.cloudflare.ctx.waitUntil(
+      (async () => {
+        try {
+          const existingCategories = await getExistingCategories(db);
+          const metadata = await generateBookmarkMetadata(
+            context.cloudflare.env.AI,
+            url,
+            title,
+            description,
+            content,
+            existingCategories
+          );
+
+          // カテゴリを更新
+          const majorCategoryId = await getOrCreateCategory(
+            db,
+            metadata.majorCategory,
+            "major"
+          );
+          const minorCategoryId = await getOrCreateCategory(
+            db,
+            metadata.minorCategory,
+            "minor",
+            majorCategoryId
+          );
+
+          // ブックマークのカテゴリと説明を更新
+          await db
+            .update(bookmarks)
+            .set({
+              description: metadata.description,
+              majorCategoryId,
+              minorCategoryId,
+            })
+            .where(eq(bookmarks.id, bookmarkResult.id));
+        } catch (error) {
+          console.error("Background AI processing failed:", error);
+          // エラーでも暫定カテゴリで保存済みなので影響なし
+        }
+      })()
+    );
 
     return {
       success: true,

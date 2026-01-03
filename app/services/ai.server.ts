@@ -35,8 +35,6 @@ export async function generateBookmarkMetadata(ai: Ai, url: string, pageTitle: s
       max_tokens: 150,
     });
 
-    console.log(response);
-
     // AI応答の検証
     const validation = validateAiResponse(response);
     if (!validation.valid) {

@@ -81,6 +81,18 @@ export async function loader({ context, request }: Route.LoaderArgs) {
 }
 
 export async function action({ request, context }: Route.ActionArgs) {
+  // CSRF対策: POSTリクエストのみ許可
+  if (request.method !== "POST") {
+    return { error: "無効なリクエストメソッドです" };
+  }
+
+  // CSRF対策: Originヘッダーチェック
+  const origin = request.headers.get("Origin");
+  const host = request.headers.get("Host");
+  if (origin && host && new URL(origin).host !== host) {
+    return { error: "不正なリクエスト元です" };
+  }
+
   // DoS対策: レート制限チェック
   const clientIp = getClientIp(request);
   const rateLimit = checkRateLimit(clientIp, 10, 60 * 1000); // 1分間に10リクエスト

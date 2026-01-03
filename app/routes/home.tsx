@@ -630,7 +630,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
   
   // ドラッグ&ドロップ用state
   const [draggedItem, setDraggedItem] = useState<{ type: 'bookmark' | 'category'; id: number; currentOrder: number } | null>(null);
-  const [dragOverItem, setDragOverItem] = useState<{ type: 'bookmark' | 'category'; id: number } | null>(null);
+  const [dragOverItem, setDragOverItem] = useState<{ type: 'bookmark' | 'category'; id: number; position: 'before' | 'after' } | null>(null);
   
   // 現在のブックマーク総数を計算
   const currentBookmarkCount = loaderData.bookmarksByCategory.reduce(
@@ -723,7 +723,13 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
     if (!draggedItem || draggedItem.type !== type || draggedItem.id === id) {
       return;
     }
-    setDragOverItem({ type, id });
+    
+    // マウスの位置から挿入位置を判定（上半分なら前、下半分なら後）
+    const rect = e.currentTarget.getBoundingClientRect();
+    const midpoint = rect.top + rect.height / 2;
+    const position = e.clientY < midpoint ? 'before' : 'after';
+    
+    setDragOverItem({ type, id, position });
   };
 
   const handleDrop = async (e: React.DragEvent, targetType: 'bookmark' | 'category', targetId: number, targetOrder: number, minorCategoryId?: number) => {
@@ -774,9 +780,22 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
         
         if (draggedIndex === -1 || targetIndex === -1 || draggedIndex === targetIndex) return;
 
+        // positionに基づいて挿入位置を調整
+        const position = dragOverItem?.position || 'after';
+        let insertIndex = targetIndex;
+        
+        if (position === 'after') {
+          insertIndex = targetIndex + 1;
+        }
+        
+        // draggedIndexがinsertIndexより前にある場合、削除後にindexがずれるので調整
+        if (draggedIndex < insertIndex) {
+          insertIndex--;
+        }
+
         // 配列を並び替え
         const [removed] = bookmarksInCategory.splice(draggedIndex, 1);
-        bookmarksInCategory.splice(targetIndex, 0, removed);
+        bookmarksInCategory.splice(insertIndex, 0, removed);
 
         // 新しい順序を計算
         const orders = bookmarksInCategory.map((bookmark, index) => ({
@@ -798,9 +817,22 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
         
         if (draggedIndex === -1 || targetIndex === -1) return;
 
+        // positionに基づいて挿入位置を調整
+        const position = dragOverItem?.position || 'after';
+        let insertIndex = targetIndex;
+        
+        if (position === 'after') {
+          insertIndex = targetIndex + 1;
+        }
+        
+        // draggedIndexがinsertIndexより前にある場合、削除後にindexがずれるので調整
+        if (draggedIndex < insertIndex) {
+          insertIndex--;
+        }
+
         const reordered = [...categories];
         const [removed] = reordered.splice(draggedIndex, 1);
-        reordered.splice(targetIndex, 0, removed);
+        reordered.splice(insertIndex, 0, removed);
 
         // 新しい順序を計算
         const orders = reordered.map((category, index) => ({
@@ -939,7 +971,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                 placeholder="https://example.com"
                 required
                 disabled={isSubmitting}
-                className="block w-full pl-11 pr-32 py-4 bg-white dark:bg-gray-900 border-0 rounded-2xl text-gray-900 dark:text-white placeholder-gray-400 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] focus:ring-2 focus:ring-blue-500/20 focus:outline-none text-lg transition-shadow"
+                className="block w-full pl-11 pr-32 py-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-gray-900 dark:text-white placeholder-gray-400 shadow-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:outline-none text-lg transition-all"
               />
               <div className="absolute inset-y-0 right-2 flex items-center">
                 <button
@@ -1003,21 +1035,28 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                   {loaderData.starredBookmarks.map((bookmark, index) => {
                     const isDragging = draggedItem?.type === 'bookmark' && draggedItem.id === bookmark.id;
                     const isDragOver = dragOverItem?.type === 'bookmark' && dragOverItem.id === bookmark.id;
+                    const showBeforeLine = isDragOver && dragOverItem?.position === 'before';
+                    const showAfterLine = isDragOver && dragOverItem?.position === 'after';
                     
                     return (
+                    <div key={bookmark.id} className="relative">
+                      {/* 挿入位置インジケーター（前） */}
+                      {showBeforeLine && (
+                        <div className="absolute -top-2 left-0 right-0 h-1 bg-blue-500 dark:bg-blue-400 rounded-full z-10 shadow-lg animate-pulse" />
+                      )}
+                      
                     <div
-                      key={bookmark.id}
                       draggable
                       onDragStart={() => handleDragStart('bookmark', bookmark.id, index)}
                       onDragOver={(e) => handleDragOver(e, 'bookmark', bookmark.id)}
                       onDrop={(e) => handleDrop(e, 'bookmark', bookmark.id, index)}
                       onDragEnd={handleDragEnd}
-                      className={`group relative bg-white dark:bg-gray-900 rounded-2xl p-5 transition-all duration-200 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-white/5 border flex flex-col ${
+                      className={`group relative bg-white dark:bg-gray-900 rounded-2xl p-5 transition-all duration-200 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-white/5 border flex flex-col animate-scale-in ${
                         isDragging 
                           ? 'opacity-30 scale-95 cursor-grabbing border-gray-300 dark:border-gray-700' 
                           : 'cursor-grab border-transparent hover:border-gray-100 dark:hover:border-gray-800'
                       } ${
-                        isDragOver ? 'ring-2 ring-blue-500 ring-offset-2 dark:ring-blue-400 scale-105 shadow-lg' : ''
+                        isDragOver ? 'scale-105' : ''
                       }`}
                     >
                       <div className="flex flex-col flex-1 min-h-0">
@@ -1134,6 +1173,11 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                             <input type="hidden" name="bookmarkId" value={bookmark.id} />
                             <button
                               type="submit"
+                              onClick={(e) => {
+                                if (!confirm(`"「${bookmark.title}」の情報を再取得しますか？\nカテゴリや説明が更新される可能性があります。`)) {
+                                  e.preventDefault();
+                                }
+                              }}
                               className="p-2 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
                               title="情報を更新"
                             >
@@ -1167,6 +1211,11 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                             <input type="hidden" name="bookmarkId" value={bookmark.id} />
                             <button
                               type="submit"
+                              onClick={(e) => {
+                                if (!confirm(`"「${bookmark.title}」を削除しますか？`)) {
+                                  e.preventDefault();
+                                }
+                              }}
                               className="p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                               title="Delete"
                             >
@@ -1178,6 +1227,12 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                         </div>
                       </div>
                     </div>
+                    
+                      {/* 挿入位置インジケーター（後） */}
+                      {showAfterLine && (
+                        <div className="absolute -bottom-2 left-0 right-0 h-1 bg-blue-500 dark:bg-blue-400 rounded-full z-10 shadow-lg animate-pulse" />
+                      )}
+                    </div>
                     );
                   })}
                 </div>
@@ -1187,9 +1242,16 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
             {loaderData.bookmarksByCategory.map((major, majorIndex) => {
               const isCategoryDragging = draggedItem?.type === 'category' && draggedItem.id === major.majorCategoryId;
               const isCategoryDragOver = dragOverItem?.type === 'category' && dragOverItem.id === major.majorCategoryId;
+              const showCategoryBeforeLine = isCategoryDragOver && dragOverItem?.position === 'before';
+              const showCategoryAfterLine = isCategoryDragOver && dragOverItem?.position === 'after';
               
               return (
-              <div key={major.majorCategory} id={major.majorCategory} className="space-y-8 scroll-mt-24">
+              <div key={major.majorCategory} id={major.majorCategory} className="space-y-8 scroll-mt-24 relative">
+                {/* カテゴリ挿入位置インジケーター（前） */}
+                {showCategoryBeforeLine && (
+                  <div className="absolute -top-4 left-0 right-0 h-1 bg-blue-500 dark:bg-blue-400 rounded-full z-10 shadow-lg animate-pulse" />
+                )}
+                
                 <h2
                   draggable
                   onDragStart={() => handleDragStart('category', major.majorCategoryId, majorIndex)}
@@ -1201,7 +1263,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                       ? 'opacity-30 cursor-grabbing border-gray-400 dark:border-gray-600' 
                       : 'cursor-grab border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
                   } ${
-                    isCategoryDragOver ? 'border-blue-500 dark:border-blue-400 border-b-4 scale-105' : ''
+                    isCategoryDragOver ? 'scale-105' : ''
                   }`}
                 >
                   <svg className="w-5 h-5 text-gray-400 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1220,23 +1282,30 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                       {minor.bookmarks.map((bookmark, index) => {
                         const isDragging = draggedItem?.type === 'bookmark' && draggedItem.id === bookmark.id;
                         const isDragOver = dragOverItem?.type === 'bookmark' && dragOverItem.id === bookmark.id;
+                        const showBeforeLine = isDragOver && dragOverItem?.position === 'before';
+                        const showAfterLine = isDragOver && dragOverItem?.position === 'after';
                         
                         return (
+                        <div key={bookmark.id} className="relative">
+                          {/* 挿入位置インジケーター（前） */}
+                          {showBeforeLine && (
+                            <div className="absolute -top-2 left-0 right-0 h-1 bg-blue-500 dark:bg-blue-400 rounded-full z-10 shadow-lg animate-pulse" />
+                          )}
+                          
                         <div
-                          key={bookmark.id}
                           draggable
                           onDragStart={() => handleDragStart('bookmark', bookmark.id, index)}
                           onDragOver={(e) => handleDragOver(e, 'bookmark', bookmark.id)}
                           onDrop={(e) => handleDrop(e, 'bookmark', bookmark.id, index, minor.minorCategoryId)}
                           onDragEnd={handleDragEnd}
-                          className={`group relative bg-white dark:bg-gray-900 rounded-2xl p-5 transition-all duration-200 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-white/5 border flex flex-col ${
+                          className={`group relative bg-white dark:bg-gray-900 rounded-2xl p-5 transition-all duration-200 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-white/5 border flex flex-col animate-scale-in ${
                             bookmark.isArchived ? 'opacity-60 grayscale' : ''
                           } ${
                             isDragging 
                               ? 'opacity-30 scale-95 cursor-grabbing border-gray-300 dark:border-gray-700' 
                               : 'cursor-grab border-transparent hover:border-gray-100 dark:hover:border-gray-800'
                           } ${
-                            isDragOver ? 'ring-2 ring-blue-500 ring-offset-2 dark:ring-blue-400 scale-105 shadow-lg' : ''
+                            isDragOver ? 'scale-105' : ''
                           }`}
                         >
                           <div className="flex flex-col flex-1 min-h-0">
@@ -1359,6 +1428,11 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                                 <input type="hidden" name="bookmarkId" value={bookmark.id} />
                                 <button
                                   type="submit"
+                                  onClick={(e) => {
+                                    if (!confirm(`"「${bookmark.title}」の情報を再取得しますか？\nカテゴリや説明が更新される可能性があります。`)) {
+                                      e.preventDefault();
+                                    }
+                                  }}
                                   className="p-2 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
                                   title="情報を更新"
                                 >
@@ -1396,6 +1470,11 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                                 />
                                 <button
                                   type="submit"
+                                  onClick={(e) => {
+                                    if (!confirm(`"「${bookmark.title}」を削除しますか？`)) {
+                                      e.preventDefault();
+                                    }
+                                  }}
                                   className="p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                                   title="Delete"
                                 >
@@ -1416,11 +1495,22 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                             </div>
                           </div>
                         </div>
+                        
+                          {/* 挿入位置インジケーター（後） */}
+                          {showAfterLine && (
+                            <div className="absolute -bottom-2 left-0 right-0 h-1 bg-blue-500 dark:bg-blue-400 rounded-full z-10 shadow-lg animate-pulse" />
+                          )}
+                        </div>
                         );
                       })}
                     </div>
                   </div>
                 ))}
+                
+                {/* カテゴリ挿入位置インジケーター（後） */}
+                {showCategoryAfterLine && (
+                  <div className="absolute -bottom-4 left-0 right-0 h-1 bg-blue-500 dark:bg-blue-400 rounded-full z-10 shadow-lg animate-pulse" />
+                )}
               </div>
               );
             })}
@@ -1462,7 +1552,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                       type="text"
                       defaultValue={editingBookmark.title}
                       required
-                      className="w-full px-4 py-3 rounded-xl border-0 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     />
                   </div>
 
@@ -1476,7 +1566,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                       rows={4}
                       defaultValue={editingBookmark.description}
                       required
-                      className="w-full px-4 py-3 rounded-xl border-0 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all resize-none"
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
                     />
                   </div>
 
@@ -1491,7 +1581,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                         value={editingBookmark.majorCategory}
                         onChange={(e) => setEditingBookmark({ ...editingBookmark, majorCategory: e.target.value })}
                         required
-                        className="w-full px-4 py-3 rounded-xl border-0 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all appearance-none cursor-pointer"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none cursor-pointer"
                       >
                         <option value="">選択してください</option>
                         {loaderData.allCategories
@@ -1514,7 +1604,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                         value={editingBookmark.minorCategory}
                         onChange={(e) => setEditingBookmark({ ...editingBookmark, minorCategory: e.target.value })}
                         required
-                        className="w-full px-4 py-3 rounded-xl border-0 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all appearance-none cursor-pointer"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none cursor-pointer"
                       >
                         <option value="">選択してください</option>
                         {loaderData.allCategories

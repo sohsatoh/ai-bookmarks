@@ -34,8 +34,10 @@ export async function loader({ context, request }: Route.LoaderArgs) {
   const sortBy = url.searchParams.get("sortBy") || "date";
   const sortOrder = url.searchParams.get("sortOrder") || "desc";
   
-  const bookmarksByCategory = await getAllBookmarks(db);
-  const allCategories = await getAllCategories(db);
+  const [bookmarksByCategory, allCategories] = await Promise.all([
+    getAllBookmarks(db),
+    getAllCategories(db),
+  ]);
 
   // ソート処理（スター、アーカイブ、ユーザー指定の順）
   const sortedBookmarksByCategory = bookmarksByCategory.map((major) => ({
@@ -366,7 +368,6 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
   const isSubmitting = navigation.state === "submitting";
   const [searchParams, setSearchParams] = useSearchParams();
   const revalidator = useRevalidator();
-  const [justAdded, setJustAdded] = useState<number[]>([]);
   const formRef = useRef<HTMLFormElement>(null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [editingBookmark, setEditingBookmark] = useState<{
@@ -398,11 +399,11 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
     if (processingCount > 0) {
       const interval = setInterval(() => {
         revalidator.revalidate();
-      }, 5000); // 5秒ごとにリフレッシュ
+      }, 8000); // 8秒ごとにリフレッシュ
       
       return () => clearInterval(interval);
     }
-  }, [processingCount, revalidator]);
+  }, [processingCount]);
   
   // ブックマーク数の変化を検出して完了トーストを表示
   useEffect(() => {
@@ -445,19 +446,19 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
           setProcessingCount(prev => prev + 1);
           
           // 30秒後にタイムアウトと見なして定期リフレッシュを停止
-          setTimeout(() => {
-            if (processingCount > 0) {
-              setProcessingCount(prev => Math.max(0, prev - 1));
-              revalidator.revalidate();
-            }
+          const timeoutId = setTimeout(() => {
+            setProcessingCount(prev => Math.max(0, prev - 1));
+            revalidator.revalidate();
           }, 30000);
+          
+          return () => clearTimeout(timeoutId);
         } else {
           // 即座に完了した場合
           revalidator.revalidate();
         }
       }
     }
-  }, [actionData, isSubmitting, revalidator]);
+  }, [actionData, isSubmitting]);
   
   const handleDismissToast = (id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id));

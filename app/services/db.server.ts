@@ -83,17 +83,18 @@ export async function createBookmark(
  * 全ブックマークをカテゴリ別に取得
  */
 export async function getAllBookmarks(db: ReturnType<typeof getDb>): Promise<BookmarksByCategory[]> {
-  // 全カテゴリを取得（アイコン情報を含む）
-  const allCategories = await db.select().from(categories);
-  const categoryMap = new Map(allCategories.map((c) => [c.id, c]));
+  // カテゴリとブックマークを並行取得
+  const [allCategories, results] = await Promise.all([
+    db.select().from(categories),
+    db
+      .select({
+        bookmark: bookmarks,
+      })
+      .from(bookmarks)
+      .orderBy(desc(bookmarks.createdAt)),
+  ]);
 
-  // ブックマークとカテゴリをJOINして取得
-  const results = await db
-    .select({
-      bookmark: bookmarks,
-    })
-    .from(bookmarks)
-    .orderBy(desc(bookmarks.createdAt));
+  const categoryMap = new Map(allCategories.map((c) => [c.id, c]));
 
   // データを整形
   const bookmarksWithCategories: BookmarkWithCategories[] = results.map((r) => {

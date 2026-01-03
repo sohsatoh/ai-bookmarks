@@ -841,6 +841,8 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
             ))}
           </div>
         )}
+          </main>
+        </div>
       </div>
 
       {/* 編集モーダル */}
@@ -968,9 +970,6 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
           </div>
         </div>
       )}
-          </main>
-        </div>
-      </div>
     </div>
   );
 }

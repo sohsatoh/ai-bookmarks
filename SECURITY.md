@@ -26,6 +26,14 @@
   - すべてのユーザー入力が自動的にエスケープされる
   - `dangerouslySetInnerHTML`は使用していない
 
+- [x] **DOMPurifyによるHTMLサニタイズ**
+  - ファイル: `app/services/security.server.ts` - `sanitizeHtml()`, `decodeHtmlEntities()`
+  - 業界標準のHTMLサニタイザーを使用（isomorphic-dompurify）
+  - 設定可能なサニタイズオプション
+  - デフォルト: すべてのHTMLタグを除去してプレーンテキストのみ抽出
+  - XSS攻撃ベクターを自動的に検出・除去
+  - セキュリティパッチが定期的に提供される
+
 - [x] **Content Security Policy (CSP)**
   - ファイル: `app/entry.server.tsx`
   - 設定内容:
@@ -42,16 +50,6 @@
     upgrade-insecure-requests
     block-all-mixed-content
     ```
-
-- [x] **HTMLタグの除去**
-  - ファイル: `app/services/scraper.server.ts` - `stripHtmlTags()`
-  - スクレイピングしたコンテンツからHTMLタグを完全除去
-  - HTMLエンティティのデコード処理
-
-- [x] **危険な文字の検出**
-  - ファイル: `app/services/ai.server.ts`
-  - `<script>`, `onerror`, `onclick`などの検出
-  - AI応答に含まれる危険なパターンをチェック
 
 - [x] **セキュリティヘッダー**
   - `X-Content-Type-Options: nosniff`

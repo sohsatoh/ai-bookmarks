@@ -45,7 +45,7 @@ URL: ${sanitizedUrl}
   const prompt = systemPrompt + userInput;
 
   try {
-    const response = await ai.run("@cf/meta/llama-3.1-8b-instruct" as any, {
+    const response = await ai.run("@cf/openai/gpt-oss-120b" as any, {
       prompt,
       max_tokens: 300,
     });

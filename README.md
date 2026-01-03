@@ -179,6 +179,10 @@ pnpm run deploy
 #### 2. XSS（クロスサイトスクリプティング）対策
 
 - ✅ **Reactの自動エスケープ**: すべてのユーザー入力が自動的にエスケープされる
+- ✅ **DOMPurify**: 業界標準のHTMLサニタイザーを使用
+  - すべてのHTMLタグとスクリプトを安全に処理
+  - スクレイピングしたコンテンツからHTMLタグを完全除去
+  - XSS攻撃ベクターを自動的に検出・除去
 - ✅ **CSPヘッダー**: Content Security Policyで不正なスクリプト実行を防止
   - `default-src 'self'`: 同一オリジンのみ許可
   - `script-src 'self' 'unsafe-inline'`: インラインスクリプトを最小限に

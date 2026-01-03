@@ -1,70 +1,46 @@
 /**
  * セキュリティユーティリティ関数
+ * Cloudflare Workers環境向け（DOM APIなし）
  */
-
-import DOMPurify from "isomorphic-dompurify";
 
 /**
- * XSS対策: HTMLをサニタイズ（DOMPurifyを使用）
- * - すべてのHTMLタグとスクリプトを安全に処理
- * - 設定可能なオプション
+ * XSS対策: HTMLタグを除去してプレーンテキスト化
+ * サーバー側でのスクレイピング時に使用
  */
-export function sanitizeHtml(
-  html: string,
-  options: {
-    allowedTags?: string[];
-    stripTags?: boolean;
-  } = {}
-): string {
+export function stripHtmlTags(html: string): string {
   if (!html) return "";
 
-  const { stripTags = true } = options;
-
-  if (stripTags) {
-    // すべてのHTMLタグを除去してプレーンテキストのみ抽出
-    return DOMPurify.sanitize(html, {
-      ALLOWED_TAGS: [],
-      ALLOWED_ATTR: [],
-      KEEP_CONTENT: true,
-    });
-  }
-
-  // 安全なHTMLのみ許可（デフォルト設定）
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: options.allowedTags || ["b", "i", "em", "strong", "a", "p", "br"],
-    ALLOWED_ATTR: ["href", "title"],
-    ALLOW_DATA_ATTR: false,
-  });
+  return (
+    html
+      // script, styleタグとその内容を削除
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
+      // その他のHTMLタグを削除
+      .replace(/<[^>]+>/g, " ")
+      // 複数の空白を1つに
+      .replace(/\s+/g, " ")
+      .trim()
+  );
 }
 
 /**
- * HTMLエンティティをデコード（DOMPurify使用）
+ * HTMLエンティティをデコード
  */
 export function decodeHtmlEntities(text: string): string {
   if (!text) return "";
 
-  // DOMPurifyでサニタイズしてからテキスト抽出
-  const sanitized = DOMPurify.sanitize(text, {
-    ALLOWED_TAGS: [],
-    KEEP_CONTENT: true,
-  });
+  const entities: Record<string, string> = {
+    "&amp;": "&",
+    "&lt;": "<",
+    "&gt;": ">",
+    "&quot;": '"',
+    "&#x27;": "'",
+    "&#x2F;": "/",
+    "&#39;": "'",
+    "&nbsp;": " ",
+  };
 
-  // 一般的なHTMLエンティティをデコード
-  const textarea = typeof document !== "undefined" ? document.createElement("textarea") : null;
-  if (textarea) {
-    textarea.innerHTML = sanitized;
-    return textarea.value;
-  }
-
-  // フォールバック: 基本的なエンティティのみデコード
-  return sanitized
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#x27;/g, "'")
-    .replace(/&#x2F;/g, "/")
-    .replace(/&#39;/g, "'");
+  return text.replace(/&(?:amp|lt|gt|quot|#x27|#x2F|#39|nbsp);/g, (match) => entities[match] || match);
 }
 
 /**

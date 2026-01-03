@@ -1,4 +1,4 @@
-import { validateUrlStrict, sanitizeHtml, decodeHtmlEntities } from "./security.server";
+import { validateUrlStrict, stripHtmlTags, decodeHtmlEntities } from "./security.server";
 
 /**
  * URLからページタイトルとコンテンツを取得
@@ -47,10 +47,10 @@ export async function fetchPageMetadata(url: string): Promise<{
     const rawDescription = descMatch ? descMatch[1].trim() : "";
     const rawBodyText = bodyMatch ? bodyMatch[1].trim() : "";
 
-    // XSS対策: DOMPurifyでHTMLをサニタイズしてテキストのみ抽出
-    const title = sanitizeHtml(decodeHtmlEntities(rawTitle), { stripTags: true }).slice(0, 200);
-    const description = sanitizeHtml(decodeHtmlEntities(rawDescription), { stripTags: true }).slice(0, 500);
-    const bodyText = sanitizeHtml(decodeHtmlEntities(rawBodyText), { stripTags: true }).slice(0, 1000);
+    // XSS対策: HTMLタグを除去してテキストのみ抽出
+    const title = stripHtmlTags(decodeHtmlEntities(rawTitle)).slice(0, 200);
+    const description = stripHtmlTags(decodeHtmlEntities(rawDescription)).slice(0, 500);
+    const bodyText = stripHtmlTags(decodeHtmlEntities(rawBodyText)).slice(0, 1000);
 
     // コンテンツを結合（AI分析用）
     const content = [title, description, bodyText].filter(Boolean).join(" ").slice(0, 2000); // 最大2000文字
@@ -71,24 +71,12 @@ export async function fetchPageMetadata(url: string): Promise<{
 }
 
 /**
- * URLの妥当性を検証
+ * URLの妥当性を検証（後方互換性のため）
  */
 export function validateUrl(urlString: string): { valid: boolean; error?: string } {
-  try {
-    const url = new URL(urlString);
-
-    // HTTPまたはHTTPSのみ許可
-    if (!["http:", "https:"].includes(url.protocol)) {
-      return { valid: false, error: "HTTPまたはHTTPSのURLのみ対応しています" };
-    }
-
-    // ホスト名が存在するか確認
-    if (!url.hostname) {
-      return { valid: false, error: "有効なホスト名が必要です" };
-    }
-
-    return { valid: true };
-  } catch {
-    return { valid: false, error: "無効なURL形式です" };
-  }
+  const result = validateUrlStrict(urlString);
+  return {
+    valid: result.valid,
+    error: result.error,
+  };
 }

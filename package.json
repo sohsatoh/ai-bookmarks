@@ -20,7 +20,6 @@
     "@cloudflare/ai": "^1.1.4",
     "drizzle-orm": "^0.37.0",
     "isbot": "^5.1.31",
-    "isomorphic-dompurify": "^2.35.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router": "^7.10.0"

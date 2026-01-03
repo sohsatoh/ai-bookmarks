@@ -10,8 +10,7 @@ import {
   deleteBookmark,
 } from "~/services/db.server";
 import { generateBookmarkMetadata } from "~/services/ai.server";
-import { fetchPageMetadata } from "~/services/scraper.server";
-import { validateUrlStrict, validateTextInput } from "~/services/security.server";
+import { fetchPageMetadata, validateUrl } from "~/services/scraper.server";
 
 export function meta(_args: Route.MetaArgs) {
   return [
@@ -71,18 +70,16 @@ export async function action({ request, context }: Route.ActionArgs) {
     };
   }
 
-  // URL検証（強化版）
-  const validation = validateUrlStrict(url);
+  // URL検証
+  const validation = validateUrl(url);
   if (!validation.valid) {
     return {
       error: validation.error || "URLが無効です",
     };
   }
 
-  const sanitizedUrl = validation.sanitizedUrl!;
-
   // 重複チェック
-  const isDuplicate = await checkDuplicateUrl(db, sanitizedUrl);
+  const isDuplicate = await checkDuplicateUrl(db, url);
   if (isDuplicate) {
     return {
       error: "このURLは既に登録されています",
@@ -91,7 +88,7 @@ export async function action({ request, context }: Route.ActionArgs) {
 
   try {
     // 1. ページメタデータ取得
-    const { title, content } = await fetchPageMetadata(sanitizedUrl);
+    const { title, content } = await fetchPageMetadata(url);
 
     // 2. 既存カテゴリ取得
     const existingCategories = await getExistingCategories(db);
@@ -99,7 +96,7 @@ export async function action({ request, context }: Route.ActionArgs) {
     // 3. AI でメタデータ生成
     const metadata = await generateBookmarkMetadata(
       context.cloudflare.env.AI,
-      sanitizedUrl,
+      url,
       title,
       content,
       existingCategories
@@ -120,7 +117,7 @@ export async function action({ request, context }: Route.ActionArgs) {
 
     // 5. ブックマーク作成
     await createBookmark(db, {
-      url: sanitizedUrl,
+      url: url,
       title,
       description: metadata.description,
       majorCategoryId,

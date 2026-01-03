@@ -7,6 +7,12 @@
   "name": "ai-bookmarks",
   "compatibility_date": "2025-04-04",
   "main": "./workers/app.ts",
+  "routes": [
+    {
+      "pattern": "bookmarks.satoh.dev",
+      "custom_domain": true,
+    },
+  ],
   "observability": {
     "enabled": true,
   },

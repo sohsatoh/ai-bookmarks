@@ -34,12 +34,18 @@ export async function loader({ context, request }: Route.LoaderArgs) {
   
   const bookmarksByCategory = await getAllBookmarks(db);
 
-  // ソート処理
+  // ソート処理（スターアイテムを優先）
   const sortedBookmarksByCategory = bookmarksByCategory.map((major) => ({
     ...major,
     minorCategories: major.minorCategories.map((minor) => ({
       ...minor,
       bookmarks: [...minor.bookmarks].sort((a, b) => {
+        // スターアイテムを最優先
+        if (a.isStarred !== b.isStarred) {
+          return a.isStarred ? -1 : 1;
+        }
+        
+        // スターが同じ場合、ユーザー指定のソートを適用
         let comparison = 0;
         
         if (sortBy === "title") {
@@ -79,6 +85,36 @@ export async function action({ request, context }: Route.ActionArgs) {
   const intent = formData.get("intent");
 
   const db = getDb(context.cloudflare.env.DB);
+
+  // スターのトグル処理
+  if (intent === "toggleStar") {
+    const bookmarkId = formData.get("bookmarkId");
+    const currentStarred = formData.get("isStarred");
+    
+    // 入力検証
+    if (!bookmarkId || typeof bookmarkId !== "string") {
+      return { error: "無効なリクエストです" };
+    }
+
+    const id = Number(bookmarkId);
+    if (isNaN(id) || id <= 0) {
+      return { error: "無効なIDです" };
+    }
+
+    try {
+      // スター状態を反転
+      await db
+        .update(bookmarks)
+        .set({
+          isStarred: currentStarred === "true" ? false : true,
+        })
+        .where(eq(bookmarks.id, id));
+      return { success: true };
+    } catch (error) {
+      console.error("Toggle star failed:", error);
+      return { error: "スターの更新に失敗しました" };
+    }
+  }
 
   // 削除処理
   if (intent === "delete") {
@@ -509,32 +545,57 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                               </a>
                             </div>
 
-                            <Form method="post" className="shrink-0">
-                              <input type="hidden" name="intent" value="delete" />
-                              <input
-                                type="hidden"
-                                name="bookmarkId"
-                                value={bookmark.id}
-                              />
-                              <button
-                                type="submit"
-                                className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                                title="削除"
-                              >
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  className="h-5 w-5"
-                                  viewBox="0 0 20 20"
-                                  fill="currentColor"
+                            <div className="shrink-0 flex gap-2">
+                              {/* スターボタン */}
+                              <Form method="post">
+                                <input type="hidden" name="intent" value="toggleStar" />
+                                <input type="hidden" name="bookmarkId" value={bookmark.id} />
+                                <input type="hidden" name="isStarred" value={bookmark.isStarred.toString()} />
+                                <button
+                                  type="submit"
+                                  className="p-2 text-yellow-500 hover:text-yellow-600 dark:text-yellow-400 dark:hover:text-yellow-300 transition-colors"
+                                  title={bookmark.isStarred ? "スターを外す" : "スターを付ける"}
                                 >
-                                  <path
-                                    fillRule="evenodd"
-                                    d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                                    clipRule="evenodd"
-                                  />
-                                </svg>
-                              </button>
-                            </Form>
+                                  {bookmark.isStarred ? (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                    </svg>
+                                  ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                                    </svg>
+                                  )}
+                                </button>
+                              </Form>
+                              
+                              {/* 削除ボタン */}
+                              <Form method="post">
+                                <input type="hidden" name="intent" value="delete" />
+                                <input
+                                  type="hidden"
+                                  name="bookmarkId"
+                                  value={bookmark.id}
+                                />
+                                <button
+                                  type="submit"
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                                  title="削除"
+                                >
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-5 w-5"
+                                    viewBox="0 0 20 20"
+                                    fill="currentColor"
+                                  >
+                                    <path
+                                      fillRule="evenodd"
+                                      d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                                      clipRule="evenodd"
+                                    />
+                                  </svg>
+                                </button>
+                              </Form>
+                            </div>
                           </div>
                         </div>
                         );

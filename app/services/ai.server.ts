@@ -27,6 +27,10 @@ export async function generateBookmarkMetadata(ai: Ai, url: string, pageTitle: s
 
 【固有名詞・技術用語の扱い】企業名、製品名、サービス名、技術用語（例：Google、GitHub、React、AWS等）は翻訳せず、そのまま原語で使用してください。
 
+【大分類と小分類の例】
+- 大分類: コンピューターサイエンス、ニュース、エンターテイメント、教育、健康、ビジネス、趣味、ライフスタイル、旅行、ショッピングなど
+- 小分類: モバイルアプリセキュリティ、Webセキュリティ...など、より具体的なカテゴリ
+
 出力形式:
 {"majorCategory":"大分類","minorCategory":"小分類","description":"日本語で80文字以内の説明"}`;
 

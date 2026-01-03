@@ -11,6 +11,7 @@ export interface BookmarkWithCategories {
     id: number;
     name: string;
   };
+  isStarred: boolean;
   userId: string | null;
   createdAt: Date;
   updatedAt: Date;

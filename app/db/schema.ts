@@ -23,6 +23,7 @@ export const bookmarks = sqliteTable("bookmarks", {
   minorCategoryId: integer("minor_category_id")
     .notNull()
     .references(() => categories.id),
+  isStarred: integer("is_starred", { mode: "boolean" }).notNull().default(false),
   // 将来のユーザー分離対応用（現在はNULL許容）
   userId: text("user_id"),
   createdAt: integer("created_at", { mode: "timestamp" })

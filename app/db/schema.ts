@@ -24,6 +24,10 @@ export const bookmarks = sqliteTable("bookmarks", {
     .notNull()
     .references(() => categories.id),
   isStarred: integer("is_starred", { mode: "boolean" }).notNull().default(false),
+  readStatus: text("read_status", { enum: ["unread", "read"] })
+    .notNull()
+    .default("unread"),
+  isArchived: integer("is_archived", { mode: "boolean" }).notNull().default(false),
   // 将来のユーザー分離対応用（現在はNULL許容）
   userId: text("user_id"),
   createdAt: integer("created_at", { mode: "timestamp" })

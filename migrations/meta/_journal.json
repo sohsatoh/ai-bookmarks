@@ -8,6 +8,20 @@
       "when": 1767426347230,
       "tag": "0000_chemical_wendell_vaughn",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1767426400000,
+      "tag": "0001_add_starred",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1767426400001,
+      "tag": "0002_add_read_status_and_archive",
+      "breakpoints": true
     }
   ]
 }

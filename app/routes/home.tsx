@@ -700,7 +700,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
           {/* 左サイドバー - カテゴリTOC */}
           <aside className="hidden lg:block w-64 flex-shrink-0">
             <div className="sticky top-24 space-y-2">
-              <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 px-3">
+              <h3 className="text-xs lg:text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 px-3">
                 Categories
               </h3>
               <nav className="space-y-1">
@@ -708,10 +708,10 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                   <div key={major.majorCategory}>
                     <a
                       href={`#${major.majorCategory}`}
-                      className="block px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                      className="block px-3 py-2 text-sm lg:text-base font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
                     >
                       {major.majorCategory}
-                      <span className="ml-2 text-xs text-gray-400">
+                      <span className="ml-2 text-xs lg:text-sm text-gray-400">
                         ({major.minorCategories.reduce((sum, minor) => sum + minor.bookmarks.length, 0)})
                       </span>
                     </a>
@@ -721,12 +721,12 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                         <a
                           key={minor.minorCategory}
                           href={`#${major.majorCategory}-${minor.minorCategory}`}
-                          className="block px-3 py-1.5 text-xs text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-md transition-colors"
+                          className="block px-3 py-1.5 text-xs lg:text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-md transition-colors"
                         >
                           <span className="flex items-center gap-2">
                             <span className="w-1 h-1 rounded-full bg-gray-400"></span>
                             {minor.minorCategory}
-                            <span className="text-[10px] text-gray-400">({minor.bookmarks.length})</span>
+                            <span className="text-[10px] lg:text-xs text-gray-400">({minor.bookmarks.length})</span>
                           </span>
                         </a>
                       ))}
@@ -747,10 +747,8 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
               intelligently.
             </span>
           </h2>
-          <p className="text-lg text-gray-500 dark:text-gray-400 max-w-xl leading-relaxed">
+          <p className="text-sm sm:text-base md:text-lg text-gray-500 dark:text-gray-400 max-w-xl leading-relaxed">
             AIがあなたのブックマークを自動で整理。
-            <br />
-            もうカテゴリ分けに迷うことはありません。
           </p>
         </header>
 
@@ -848,13 +846,13 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
           <div className="space-y-16">
             {loaderData.bookmarksByCategory.map((major) => (
               <div key={major.majorCategory} id={major.majorCategory} className="space-y-8 scroll-mt-24">
-                <h2 className="text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight flex items-center gap-3 pb-4 border-b border-gray-200 dark:border-gray-800">
+                <h2 className="text-xl sm:text-2xl md:text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight flex items-center gap-3 pb-4 border-b border-gray-200 dark:border-gray-800">
                   {major.majorCategory}
                 </h2>
 
                 {major.minorCategories.map((minor) => (
                   <div key={minor.minorCategory} id={`${major.majorCategory}-${minor.minorCategory}`} className="space-y-4 scroll-mt-24">
-                    <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider pl-1 flex items-center gap-2">
+                    <h3 className="text-xs sm:text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider pl-1 flex items-center gap-2">
                       {minor.minorCategory}
                     </h3>
 
@@ -887,13 +885,13 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                                 rel="noopener noreferrer"
                                 className="flex-1 min-w-0 block group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors"
                               >
-                                <h4 className="font-semibold text-base text-[#1D1D1F] dark:text-[#F5F5F7] mb-2 line-clamp-2 tracking-tight leading-snug">
+                                <h4 className="font-semibold text-sm sm:text-base md:text-lg text-[#1D1D1F] dark:text-[#F5F5F7] mb-2 line-clamp-2 tracking-tight leading-snug">
                                   {bookmark.title}
                                 </h4>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 leading-relaxed">
+                                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-3 leading-relaxed">
                                   {bookmark.description}
                                 </p>
-                                <div className="flex flex-col gap-1 text-xs text-gray-400 dark:text-gray-500 font-medium">
+                                <div className="flex flex-col gap-1 text-[10px] sm:text-xs text-gray-400 dark:text-gray-500 font-medium">
                                   <span className="truncate">
                                     {new URL(bookmark.url).hostname}
                                   </span>

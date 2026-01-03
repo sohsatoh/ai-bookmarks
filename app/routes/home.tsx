@@ -13,7 +13,7 @@ import {
 } from "~/services/db.server";
 import { bookmarks } from "~/db/schema";
 import { eq } from "drizzle-orm";
-import { generateBookmarkMetadata, generateCategoryIcon } from "~/services/ai.server";
+import { generateBookmarkMetadata } from "~/services/ai.server";
 import { fetchPageMetadata, validateUrl } from "~/services/scraper.server";
 import { checkRateLimit, getClientIp } from "~/services/rate-limit.server";
 import { ToastContainer, type ToastMessage } from "~/components/Toast";

@@ -417,7 +417,14 @@ export async function action({ request, context }: Route.ActionArgs) {
     try {
       const ordersJson = formData.get("orders") as string;
       if (!ordersJson) {
-        return { error: "並び替え情報が不正です" };
+        return {
+          error: "並び替え情報が不正です",
+          toast: {
+            type: "error" as const,
+            title: "エラー",
+            message: "並び替え情報が不正です",
+          },
+        };
       }
 
       const orders: Array<{ id: number; order: number }> = JSON.parse(ordersJson);
@@ -427,10 +434,24 @@ export async function action({ request, context }: Route.ActionArgs) {
         orders.map(({ id, order }) => updateBookmarkOrder(db, id, order))
       );
 
-      return { success: true };
+      return {
+        success: true,
+        toast: {
+          type: "success" as const,
+          title: "成功",
+          message: "並び替えが完了しました",
+        },
+      };
     } catch (error) {
       console.error("Reorder bookmarks failed:", error);
-      return { error: "並び替えに失敗しました" };
+      return {
+        error: "並び替えに失敗しました",
+        toast: {
+          type: "error" as const,
+          title: "エラー",
+          message: "並び替えに失敗しました",
+        },
+      };
     }
   }
 
@@ -439,7 +460,14 @@ export async function action({ request, context }: Route.ActionArgs) {
     try {
       const ordersJson = formData.get("orders") as string;
       if (!ordersJson) {
-        return { error: "並び替え情報が不正です" };
+        return {
+          error: "並び替え情報が不正です",
+          toast: {
+            type: "error" as const,
+            title: "エラー",
+            message: "並び替え情報が不正です",
+          },
+        };
       }
 
       const orders: Array<{ id: number; order: number }> = JSON.parse(ordersJson);
@@ -449,10 +477,24 @@ export async function action({ request, context }: Route.ActionArgs) {
         orders.map(({ id, order }) => updateCategoryOrder(db, id, order))
       );
 
-      return { success: true };
+      return {
+        success: true,
+        toast: {
+          type: "success" as const,
+          title: "成功",
+          message: "カテゴリの並び替えが完了しました",
+        },
+      };
     } catch (error) {
       console.error("Reorder categories failed:", error);
-      return { error: "並び替えに失敗しました" };
+      return {
+        error: "並び替えに失敗しました",
+        toast: {
+          type: "error" as const,
+          title: "エラー",
+          message: "カテゴリの並び替えに失敗しました",
+        },
+      };
     }
   }
 
@@ -713,7 +755,16 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
         
         if (!draggedCategory || !targetCategory) return;
         if (draggedCategory !== targetCategory) {
-          console.log('異なるカテゴリ間の移動はサポートされていません');
+          // 異なるカテゴリ間での移動を試みた場合の警告トースト
+          const toastId = Date.now().toString();
+          setToasts(prev => [...prev, {
+            id: toastId,
+            type: "warning" as const,
+            title: "移動できません",
+            message: "同じカテゴリ内でのみ並び替えできます",
+          }]);
+          setDraggedItem(null);
+          setDragOverItem(null);
           return;
         }
 
@@ -766,6 +817,14 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
       }
     } catch (error) {
       console.error('Reorder failed:', error);
+      // エラートーストを表示
+      const toastId = Date.now().toString();
+      setToasts(prev => [...prev, {
+        id: toastId,
+        type: "error" as const,
+        title: "エラー",
+        message: error instanceof Error ? error.message : "並び替えに失敗しました",
+      }]);
     } finally {
       setDraggedItem(null);
       setDragOverItem(null);

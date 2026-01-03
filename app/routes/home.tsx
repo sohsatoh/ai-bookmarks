@@ -454,14 +454,14 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
       
       {/* ナビゲーションバー風ヘッダー */}
       <div className="sticky top-0 z-30 bg-[#F5F5F7]/80 dark:bg-black/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800/50">
-        <div className="max-w-5xl mx-auto px-6 sm:px-8 h-16 flex items-center justify-between">
+        <div className="max-w-[1400px] mx-auto px-6 sm:px-8 h-16 flex items-center justify-between">
           <h1 className="text-xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">
             Bookmarks
           </h1>
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-6 sm:px-8 py-12">
+      <div className="max-w-[1400px] mx-auto px-6 sm:px-8 py-12">
         {/* ヒーローセクション */}
         <header className="mb-12 text-center sm:text-left">
           <h2 className="text-4xl sm:text-5xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4 tracking-tight leading-tight">

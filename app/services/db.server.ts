@@ -13,7 +13,7 @@ export function getDb(d1Database: D1Database) {
 /**
  * カテゴリを取得または作成
  */
-export async function getOrCreateCategory(db: ReturnType<typeof getDb>, name: string, type: "major" | "minor", parentId?: number, icon?: string): Promise<number> {
+export async function getOrCreateCategory(db: ReturnType<typeof getDb>, name: string, type: "major" | "minor", parentId?: number): Promise<number> {
   // 既存のカテゴリを検索
   const existing = await db.select().from(categories).where(eq(categories.name, name)).limit(1);
 
@@ -28,7 +28,7 @@ export async function getOrCreateCategory(db: ReturnType<typeof getDb>, name: st
       name,
       type,
       parentId: parentId || null,
-      icon: icon || null,
+      icon: null,
     })
     .returning({ id: categories.id });
 

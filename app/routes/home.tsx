@@ -308,26 +308,18 @@ export async function action({ request, context }: Route.ActionArgs) {
 
           console.log("[Background] AI processing completed, saving to DB");
 
-          // カテゴリアイコンをAIで生成
-          const [majorIcon, minorIcon] = await Promise.all([
-            generateCategoryIcon(context.cloudflare.env.AI, metadata.majorCategory, "major"),
-            generateCategoryIcon(context.cloudflare.env.AI, metadata.minorCategory, "minor"),
-          ]);
-
           // カテゴリを取得または作成
           const majorCategoryId = await getOrCreateCategory(
             db,
             metadata.majorCategory,
             "major",
-            undefined,
-            majorIcon
+            undefined
           );
           const minorCategoryId = await getOrCreateCategory(
             db,
             metadata.minorCategory,
             "minor",
-            majorCategoryId,
-            minorIcon
+            majorCategoryId
           );
 
           // ブックマーク作成

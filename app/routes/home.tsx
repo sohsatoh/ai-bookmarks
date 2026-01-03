@@ -857,17 +857,17 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                       {minor.minorCategory}
                     </h3>
 
-                    <div className="grid gap-4 sm:grid-cols-1">
+                    <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                       {minor.bookmarks.map((bookmark) => {
                         return (
                         <div
                           key={bookmark.id}
-                          className={`group relative bg-white dark:bg-gray-900 rounded-2xl p-5 transition-all duration-300 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-white/5 border border-transparent hover:border-gray-100 dark:hover:border-gray-800 ${
+                          className={`group relative bg-white dark:bg-gray-900 rounded-2xl p-5 transition-all duration-300 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-white/5 border border-transparent hover:border-gray-100 dark:hover:border-gray-800 flex flex-col ${
                             bookmark.isArchived ? 'opacity-60 grayscale' : ''
                           }`}
                         >
-                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                            <div className="flex-1 min-w-0 flex gap-4 overflow-hidden">
+                          <div className="flex flex-col flex-1 min-h-0">
+                            <div className="flex items-start gap-3 mb-3">
                               {/* Favicon */}
                               <div className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800 flex items-center justify-center flex-shrink-0 shadow-inner">
                                 <img
@@ -886,17 +886,16 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                                 rel="noopener noreferrer"
                                 className="flex-1 min-w-0 block group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors"
                               >
-                                <h4 className="font-semibold text-lg text-[#1D1D1F] dark:text-[#F5F5F7] mb-1 line-clamp-1 tracking-tight">
+                                <h4 className="font-semibold text-base text-[#1D1D1F] dark:text-[#F5F5F7] mb-2 line-clamp-2 tracking-tight leading-snug">
                                   {bookmark.title}
                                 </h4>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 mb-3 leading-relaxed">
+                                <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-3 mb-3 leading-relaxed">
                                   {bookmark.description}
                                 </p>
-                                <div className="flex items-center gap-3 text-xs text-gray-400 dark:text-gray-500 font-medium">
-                                  <span className="truncate max-w-[200px]">
+                                <div className="flex flex-col gap-1 text-xs text-gray-400 dark:text-gray-500 font-medium">
+                                  <span className="truncate">
                                     {new URL(bookmark.url).hostname}
                                   </span>
-                                  <span className="w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-700"></span>
                                   <span>
                                     {new Date(bookmark.createdAt).toLocaleDateString("en-US", {
                                       month: "short",
@@ -907,7 +906,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                               </a>
                             </div>
 
-                            <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 sm:translate-x-2 group-hover:translate-x-0">
+                            <div className="shrink-0 flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity duration-200 mt-auto pt-2">
                               {/* 読了ステータスボタン */}
                               <Form method="post">
                                 <input type="hidden" name="intent" value="toggleReadStatus" />

@@ -9,7 +9,6 @@ import { sanitizeForPrompt, validateAiResponse } from "./security.server";
  */
 export async function generateBookmarkMetadata(ai: Ai, url: string, pageTitle: string, pageDescription: string, pageContent: string, existingCategories: { major: string[]; minor: string[] }): Promise<AIGeneratedMetadata> {
   // コスト削減: コンテンツ長を制限
-  const sanitizedUrl = sanitizeForPrompt(url, 300);
   const sanitizedTitle = sanitizeForPrompt(pageTitle, 150);
   const sanitizedDescription = sanitizeForPrompt(pageDescription, 200);
   const sanitizedContent = sanitizeForPrompt(pageContent, 400);

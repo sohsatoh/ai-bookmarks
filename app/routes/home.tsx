@@ -15,6 +15,7 @@ import { eq } from "drizzle-orm";
 import { generateBookmarkMetadata } from "~/services/ai.server";
 import { fetchPageMetadata, validateUrl } from "~/services/scraper.server";
 import { checkRateLimit, getClientIp } from "~/services/rate-limit.server";
+import { ToastContainer, type ToastMessage } from "~/components/Toast";
 
 export function meta(_args: Route.MetaArgs) {
   return [
@@ -176,81 +177,59 @@ export async function action({ request, context }: Route.ActionArgs) {
     // 1. ページメタデータ取得
     const { title, description, content } = await fetchPageMetadata(url);
 
-    // 2. 暫定カテゴリで先にブックマークを保存（高速レスポンス）
-    const domain = new URL(url).hostname;
-    const tempMajorCategoryId = await getOrCreateCategory(
+    // 2. 既存カテゴリ取得
+    const existingCategories = await getExistingCategories(db);
+
+    // 3. AIでメタデータ生成（同期実行）
+    const metadata = await generateBookmarkMetadata(
+      context.cloudflare.env.AI,
+      url,
+      title,
+      description,
+      content,
+      existingCategories
+    );
+
+    // 4. カテゴリを取得または作成
+    const majorCategoryId = await getOrCreateCategory(
       db,
-      "未分類",
+      metadata.majorCategory,
       "major"
     );
-    const tempMinorCategoryId = await getOrCreateCategory(
+    const minorCategoryId = await getOrCreateCategory(
       db,
-      domain,
+      metadata.minorCategory,
       "minor",
-      tempMajorCategoryId
+      majorCategoryId
     );
 
-    const bookmarkResult = await createBookmark(db, {
+    // 5. ブックマーク作成
+    await createBookmark(db, {
       url: url,
       title,
-      description: title.slice(0, 60),
-      majorCategoryId: tempMajorCategoryId,
-      minorCategoryId: tempMinorCategoryId,
+      description: metadata.description,
+      majorCategoryId,
+      minorCategoryId,
     });
-
-    // 3. AI処理をバックグラウンドで実行（waitUntilで非同期処理）
-    context.cloudflare.ctx.waitUntil(
-      (async () => {
-        try {
-          const existingCategories = await getExistingCategories(db);
-          const metadata = await generateBookmarkMetadata(
-            context.cloudflare.env.AI,
-            url,
-            title,
-            description,
-            content,
-            existingCategories
-          );
-
-          // カテゴリを更新
-          const majorCategoryId = await getOrCreateCategory(
-            db,
-            metadata.majorCategory,
-            "major"
-          );
-          const minorCategoryId = await getOrCreateCategory(
-            db,
-            metadata.minorCategory,
-            "minor",
-            majorCategoryId
-          );
-
-          // ブックマークのカテゴリと説明を更新
-          await db
-            .update(bookmarks)
-            .set({
-              description: metadata.description,
-              majorCategoryId,
-              minorCategoryId,
-            })
-            .where(eq(bookmarks.id, bookmarkResult.id));
-        } catch (error) {
-          console.error("Background AI processing failed:", error);
-          // エラーでも暫定カテゴリで保存済みなので影響なし
-        }
-      })()
-    );
 
     return {
       success: true,
+      toast: {
+        type: "success" as const,
+        title: "追加完了",
+        message: title,
+      },
+    };
     };
   } catch (error) {
     console.error("Failed to create bookmark:", error);
     return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "ブックマークの作成に失敗しました",
+      error: error instanceof Error ? error.message : "ブックマークの作成に失敗しました",
+      toast: {
+        type: "error" as const,
+        title: "エラー",
+        message: error instanceof Error ? error.message : "ブックマークの作成に失敗しました",
+      },
     };
   }
 }
@@ -262,6 +241,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
   const revalidator = useRevalidator();
   const [justAdded, setJustAdded] = useState<number[]>([]);
   const formRef = useRef<HTMLFormElement>(null);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
   
   const currentSortBy = loaderData.sortBy;
   const currentSortOrder = loaderData.sortOrder;
@@ -286,33 +266,67 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
     }
   }, [processingBookmarks.length, revalidator]);
   
-  // 新しく追加されたブックマークのアニメーション
+  // 送信開始時にトースト表示
   useEffect(() => {
-    if (actionData?.success && !isSubmitting) {
+    if (isSubmitting && formRef.current) {
+      const urlInput = formRef.current.elements.namedItem("url") as HTMLInputElement;
+      if (urlInput?.value) {
+        const toastId = Date.now().toString();
+        setToasts(prev => [...prev, {
+          id: toastId,
+          type: "info",
+          title: "処理中",
+          message: urlInput.value,
+        }]);
+      }
+    }
+  }, [isSubmitting]);
+  
+  // 新しく追加されたブックマークのアニメーションとトースト
+  useEffect(() => {
+    if (actionData && !isSubmitting) {
       // フォームをクリア
       if (formRef.current) {
         formRef.current.reset();
       }
       
-      // 成功後にリフレッシュして最新のブックマークを取得
-      revalidator.revalidate();
+      // 処理中トーストを削除
+      setToasts(prev => prev.filter(t => t.type !== "info"));
       
-      // 最新のブックマークをjustAddedに追加（最初の1件）
-      const allBookmarks = loaderData.bookmarksByCategory
-        .flatMap(major => major.minorCategories.flatMap(minor => minor.bookmarks));
-      if (allBookmarks.length > 0) {
-        const newestBookmark = allBookmarks.sort((a, b) => 
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        )[0];
-        setJustAdded(prev => [...prev, newestBookmark.id]);
+      // 結果トーストを表示
+      if (actionData.toast) {
+        const toastId = Date.now().toString();
+        setToasts(prev => [...prev, {
+          id: toastId,
+          ...actionData.toast,
+        }]);
+      }
+      
+      if (actionData.success) {
+        // 成功後にリフレッシュして最新のブックマークを取得
+        revalidator.revalidate();
         
-        // 3秒後にアニメーションを解除
-        setTimeout(() => {
-          setJustAdded(prev => prev.filter(id => id !== newestBookmark.id));
-        }, 3000);
+        // 最新のブックマークをjustAddedに追加（最初の1件）
+        const allBookmarks = loaderData.bookmarksByCategory
+          .flatMap(major => major.minorCategories.flatMap(minor => minor.bookmarks));
+        if (allBookmarks.length > 0) {
+          const newestBookmark = allBookmarks.sort((a, b) => 
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          )[0];
+          setJustAdded(prev => [...prev, newestBookmark.id]);
+          
+          // 3秒後にアニメーションを解除
+          setTimeout(() => {
+            setJustAdded(prev => prev.filter(id => id !== newestBookmark.id));
+          }, 3000);
+        }
       }
     }
-  }, [actionData?.success, isSubmitting, revalidator]);
+  }, [actionData, isSubmitting, revalidator]);
+  
+  const handleDismissToast = (id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
   
   const handleSortChange = (newSortBy: string) => {
     const newParams = new URLSearchParams(searchParams);
@@ -330,6 +344,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
 
   return (
     <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+      <ToastContainer toasts={toasts} onDismiss={handleDismissToast} />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* ヘッダー */}
         <header className="mb-8">

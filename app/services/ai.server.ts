@@ -40,6 +40,8 @@ export async function generateBookmarkMetadata(ai: Ai, url: string, pageTitle: s
 内容: ${sanitizedContent}${existingMajorList}${existingMinorList}`;
 
   try {
+    console.log(`[AI] Starting metadata generation for URL: ${url.substring(0, 50)}...`);
+
     // OpenAI GPT 20Bモデルを使用（input形式）
     const response = await ai.run("@cf/openai/gpt-oss-20b", {
       instructions: systemPrompt,
@@ -47,9 +49,12 @@ export async function generateBookmarkMetadata(ai: Ai, url: string, pageTitle: s
       max_tokens: 150,
     });
 
+    console.log(`[AI] Raw response received:`, JSON.stringify(response).substring(0, 200) + "...");
+
     // AI応答の検証
     const validation = validateAiResponse(response);
     if (!validation.valid) {
+      console.error(`[AI] Validation failed:`, validation.error);
       throw new Error(validation.error);
     }
 
@@ -75,8 +80,11 @@ export async function generateBookmarkMetadata(ai: Ai, url: string, pageTitle: s
     }
 
     if (!responseText) {
+      console.error(`[AI] Could not extract text from response`);
       throw new Error("AI応答からテキストを抽出できませんでした");
     }
+
+    console.log(`[AI] Extracted text:`, responseText.substring(0, 200));
 
     // JSONブロックを抽出（```json または { で始まるパターン）
     const jsonRegex1 = /```json\s*([\s\S]*?)\s*```/;
@@ -84,13 +92,16 @@ export async function generateBookmarkMetadata(ai: Ai, url: string, pageTitle: s
     const jsonMatch = jsonRegex1.exec(responseText) || jsonRegex2.exec(responseText);
 
     if (!jsonMatch) {
+      console.error(`[AI] Could not extract JSON from text:`, responseText);
       throw new Error("AI応答からJSONを抽出できませんでした");
     }
 
     const metadata = JSON.parse(jsonMatch[1]) as AIGeneratedMetadata;
+    console.log(`[AI] Parsed metadata:`, metadata);
 
     // バリデーションとサニタイズ
     if (!metadata.majorCategory || !metadata.minorCategory || !metadata.description) {
+      console.error(`[AI] Missing required fields:`, metadata);
       throw new Error("必須フィールドが不足しています");
     }
 
@@ -101,13 +112,18 @@ export async function generateBookmarkMetadata(ai: Ai, url: string, pageTitle: s
       throw new Error("不正な応答が検出されました");
     }
 
+    console.log(`[AI] Successfully generated metadata`);
     return {
       majorCategory: metadata.majorCategory.trim().slice(0, 100),
       minorCategory: metadata.minorCategory.trim().slice(0, 100),
       description: metadata.description.trim().slice(0, 200), // 最大200文字に制限
     };
   } catch (error) {
-    console.error("AI metadata generation failed:", error);
+    console.error("[AI] Metadata generation failed:", error);
+    console.error("[AI] Error details:", {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     // フォールバック: URLベースのシンプルなカテゴリ分類
     const domain = new URL(url).hostname;
     return {

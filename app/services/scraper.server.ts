@@ -48,12 +48,12 @@ export async function fetchPageMetadata(url: string): Promise<{
     const rawBodyText = bodyMatch ? bodyMatch[1].trim() : "";
 
     // XSS対策: HTMLタグを除去してテキストのみ抽出
-    const title = stripHtmlTags(decodeHtmlEntities(rawTitle)).slice(0, 200);
-    const description = stripHtmlTags(decodeHtmlEntities(rawDescription)).slice(0, 500);
-    const bodyText = stripHtmlTags(decodeHtmlEntities(rawBodyText)).slice(0, 1000);
+    const title = stripHtmlTags(decodeHtmlEntities(rawTitle)).slice(0, 150);
+    const description = stripHtmlTags(decodeHtmlEntities(rawDescription)).slice(0, 300);
+    const bodyText = stripHtmlTags(decodeHtmlEntities(rawBodyText)).slice(0, 400);
 
-    // コンテンツを結合（AI分析用）
-    const content = [title, description, bodyText].filter(Boolean).join(" ").slice(0, 2000); // 最大2000文字
+    // コンテンツを結合（AI分析用、コスト削減のため短縮）
+    const content = [title, description, bodyText].filter(Boolean).join(" ").slice(0, 800); // 最大800文字
 
     return {
       title: title || "Untitled",

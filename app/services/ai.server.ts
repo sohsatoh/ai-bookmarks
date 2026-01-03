@@ -8,46 +8,31 @@ import { sanitizeForPrompt, validateAiResponse } from "./security.server";
  * - Prompt Injection対策済み
  */
 export async function generateBookmarkMetadata(ai: Ai, url: string, pageTitle: string, pageContent: string, existingCategories: { major: string[]; minor: string[] }): Promise<AIGeneratedMetadata> {
-  // Prompt Injection対策: ユーザー入力をサニタイズ
-  const sanitizedUrl = sanitizeForPrompt(url, 500);
-  const sanitizedTitle = sanitizeForPrompt(pageTitle, 200);
-  const sanitizedContent = sanitizeForPrompt(pageContent, 1000);
-  const sanitizedMajorCats = existingCategories.major.map((cat) => sanitizeForPrompt(cat, 50));
-  const sanitizedMinorCats = existingCategories.minor.map((cat) => sanitizeForPrompt(cat, 50));
+  // コスト削減: コンテンツ長を制限
+  const sanitizedUrl = sanitizeForPrompt(url, 300);
+  const sanitizedTitle = sanitizeForPrompt(pageTitle, 150);
+  const sanitizedContent = sanitizeForPrompt(pageContent, 400);
+  // 既存カテゴリは最大10個まで（プロンプト長を削減）
+  const sanitizedMajorCats = existingCategories.major.slice(0, 10).map((cat) => sanitizeForPrompt(cat, 50));
+  const sanitizedMinorCats = existingCategories.minor.slice(0, 10).map((cat) => sanitizeForPrompt(cat, 50));
 
-  // システムプロンプトとユーザー入力を明確に分離
-  const systemPrompt = `あなたはWebブックマーク管理システムのアシスタントです。以下のWebページの情報から、適切なカテゴリと説明文を生成してください。
-
-以下のJSON形式で回答してください:
-\{\{\{
-  "majorCategory": "大カテゴリ名（既存のカテゴリで適切なものがあればそれを使用、なければ新規作成）",
-  "minorCategory": "小カテゴリ名（既存のカテゴリで適切なものがあればそれを使用、なければ新規作成）",
-  "description": "50文字以内の短い説明文"
-\}\}\}
-
-注意:
-- 既存のカテゴリと類似している場合は、必ず既存のカテゴリ名をそのまま使用してください
-- 大カテゴリは広い分野（例: プログラミング、デザイン、ニュース）
-- 小カテゴリは具体的なトピック（例: React、UI/UX、テクノロジー）
-- 説明文は簡潔で、ページの主な内容を表現してください
-- JSON以外のテキストは出力しないでください`;
+  // コスト削減: プロンプトを簡潔に
+  const systemPrompt = `Webページのカテゴリと説明を生成。既存カテゴリがあれば優先使用。JSON形式で出力:
+{"majorCategory":"大分野","minorCategory":"詳細トピック","description":"40文字以内の説明"}`;
 
   const userInput = `
---- ユーザー入力開始 ---
-URL: ${sanitizedUrl}
-ページタイトル: ${sanitizedTitle}
-ページ内容: ${sanitizedContent}
-
-既存の大カテゴリ: ${sanitizedMajorCats.length > 0 ? sanitizedMajorCats.join(", ") : "なし"}
-既存の小カテゴリ: ${sanitizedMinorCats.length > 0 ? sanitizedMinorCats.join(", ") : "なし"}
---- ユーザー入力終了 ---`;
+タイトル: ${sanitizedTitle}
+内容: ${sanitizedContent}
+既存大: ${sanitizedMajorCats.join(",") || "なし"}
+既存小: ${sanitizedMinorCats.join(",") || "なし"}`;
 
   const prompt = systemPrompt + userInput;
 
   try {
-    const response = await ai.run("@cf/openai/gpt-oss-120b" as any, {
+    // コスト削減: 8Bモデル使用、トークン数削減
+    const response = await ai.run("@cf/meta/llama-3-8b-instruct" as any, {
       prompt,
-      max_tokens: 300,
+      max_tokens: 150,
     });
 
     // AI応答の検証

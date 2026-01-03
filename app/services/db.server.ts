@@ -178,15 +178,55 @@ export async function checkDuplicateUrl(db: ReturnType<typeof getDb>, url: strin
 }
 
 /**
- * ブックマークの表示順序を更新
+ * ブックマークの表示順序を更新（楽観的ロック付き）
  */
-export async function updateBookmarkOrder(db: ReturnType<typeof getDb>, bookmarkId: number, newOrder: number): Promise<void> {
-  await db.update(bookmarks).set({ displayOrder: newOrder }).where(eq(bookmarks.id, bookmarkId));
+export async function updateBookmarkOrder(db: ReturnType<typeof getDb>, bookmarkId: number, newOrder: number, expectedVersion?: number): Promise<{ success: boolean; currentVersion?: number }> {
+  // バージョンチェックが有効な場合、現在のバージョンを確認
+  if (expectedVersion !== undefined) {
+    const current = await db.select().from(bookmarks).where(eq(bookmarks.id, bookmarkId)).limit(1);
+    if (current.length === 0) {
+      return { success: false };
+    }
+    if (current[0].version !== expectedVersion) {
+      return { success: false, currentVersion: current[0].version };
+    }
+  }
+
+  // 更新実行（バージョンをインクリメント）
+  await db
+    .update(bookmarks)
+    .set({
+      displayOrder: newOrder,
+      version: expectedVersion !== undefined ? expectedVersion + 1 : undefined,
+    })
+    .where(eq(bookmarks.id, bookmarkId));
+
+  return { success: true };
 }
 
 /**
- * カテゴリの表示順序を更新
+ * カテゴリの表示順序を更新（楽観的ロック付き）
  */
-export async function updateCategoryOrder(db: ReturnType<typeof getDb>, categoryId: number, newOrder: number): Promise<void> {
-  await db.update(categories).set({ displayOrder: newOrder }).where(eq(categories.id, categoryId));
+export async function updateCategoryOrder(db: ReturnType<typeof getDb>, categoryId: number, newOrder: number, expectedVersion?: number): Promise<{ success: boolean; currentVersion?: number }> {
+  // バージョンチェックが有効な場合、現在のバージョンを確認
+  if (expectedVersion !== undefined) {
+    const current = await db.select().from(categories).where(eq(categories.id, categoryId)).limit(1);
+    if (current.length === 0) {
+      return { success: false };
+    }
+    if (current[0].version !== expectedVersion) {
+      return { success: false, currentVersion: current[0].version };
+    }
+  }
+
+  // 更新実行（バージョンをインクリメント）
+  await db
+    .update(categories)
+    .set({
+      displayOrder: newOrder,
+      version: expectedVersion !== undefined ? expectedVersion + 1 : undefined,
+    })
+    .where(eq(categories.id, categoryId));
+
+  return { success: true };
 }

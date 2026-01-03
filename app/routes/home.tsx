@@ -18,6 +18,7 @@ import { eq } from "drizzle-orm";
 import { generateBookmarkMetadata } from "~/services/ai.server";
 import { fetchPageMetadata, validateUrl } from "~/services/scraper.server";
 import { checkRateLimit, getClientIp } from "~/services/rate-limit.server";
+import { initBroadcastChannel, broadcast, closeBroadcastChannel, type BroadcastMessage } from "~/utils/broadcast";
 import { ToastContainer, type ToastMessage } from "~/components/Toast";
 import { UI_CONFIG } from "~/constants";
 
@@ -429,13 +430,27 @@ export async function action({ request, context }: Route.ActionArgs) {
 
       const orders: Array<{ id: number; order: number }> = JSON.parse(ordersJson);
       
-      // 各ブックマークの順序を更新
-      await Promise.all(
+      // 各ブックマークの順序を更新（バージョンチェック付き）
+      const results = await Promise.all(
         orders.map(({ id, order }) => updateBookmarkOrder(db, id, order))
       );
+      
+      // 失敗があれば競合エラーを返す
+      const failed = results.find(r => !r.success);
+      if (failed) {
+        return {
+          error: "並び替え中に競合が発生しました",
+          toast: {
+            type: "warning" as const,
+            title: "競合検知",
+            message: "他のタブで変更されました。ページを再読み込みしてください",
+          },
+        };
+      }
 
       return {
         success: true,
+        intent: "reorderBookmarks",
         toast: {
           type: "success" as const,
           title: "成功",
@@ -472,13 +487,27 @@ export async function action({ request, context }: Route.ActionArgs) {
 
       const orders: Array<{ id: number; order: number }> = JSON.parse(ordersJson);
       
-      // 各カテゴリの順序を更新
-      await Promise.all(
+      // 各カテゴリの順序を更新（バージョンチェック付き）
+      const results = await Promise.all(
         orders.map(({ id, order }) => updateCategoryOrder(db, id, order))
       );
+      
+      // 失敗があれば競合エラーを返す
+      const failed = results.find(r => !r.success);
+      if (failed) {
+        return {
+          error: "並び替え中に競合が発生しました",
+          toast: {
+            type: "warning" as const,
+            title: "競合検知",
+            message: "他のタブで変更されました。ページを再読み込みしてください",
+          },
+        };
+      }
 
       return {
         success: true,
+        intent: "reorderCategories",
         toast: {
           type: "success" as const,
           title: "成功",
@@ -632,6 +661,17 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
   const [draggedItem, setDraggedItem] = useState<{ type: 'bookmark' | 'category'; id: number; currentOrder: number } | null>(null);
   const [dragOverItem, setDragOverItem] = useState<{ type: 'bookmark' | 'category'; id: number; position: 'before' | 'after' } | null>(null);
   
+  // 楽観的UI更新用（ローカルで即座に順序を変更）
+  const [optimisticBookmarks, setOptimisticBookmarks] = useState(loaderData.bookmarksByCategory);
+  
+  // loaderDataが変更されたら楽観的stateも更新
+  useEffect(() => {
+    setOptimisticBookmarks(loaderData.bookmarksByCategory);
+  }, [loaderData.bookmarksByCategory]);
+  
+  // 表示用データ（楽観的更新がある場合はそちらを優先）
+  const displayBookmarks = optimisticBookmarks;
+  
   // 現在のブックマーク総数を計算
   const currentBookmarkCount = loaderData.bookmarksByCategory.reduce(
     (total, major) => 
@@ -652,6 +692,39 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
       return () => clearInterval(interval);
     }
   }, [processingCount]);
+  
+  // Broadcast Channelの初期化（タブ間同期）
+  useEffect(() => {
+    initBroadcastChannel((message: BroadcastMessage) => {
+      console.log('他のタブからの更新を検知:', message);
+      
+      // 他のタブで変更があったらデータを再読み込み
+      revalidator.revalidate();
+      
+      // 通知トーストを表示
+      const toastId = Date.now().toString();
+      let toastMessage = '他のタブでデータが更新されました';
+      
+      if (message.type === 'bookmark-added') {
+        toastMessage = 'ブックマークが追加されました';
+      } else if (message.type === 'bookmark-deleted') {
+        toastMessage = 'ブックマークが削除されました';
+      } else if (message.type === 'bookmark-reordered' || message.type === 'category-reordered') {
+        toastMessage = '順番が変更されました';
+      }
+      
+      setToasts(prev => [...prev, {
+        id: toastId,
+        type: 'info',
+        title: '同期',
+        message: toastMessage,
+      }]);
+    });
+    
+    return () => {
+      closeBroadcastChannel();
+    };
+  }, [revalidator]);
   
   // ブックマーク数の変化を検出して完了トーストを表示
   useEffect(() => {
@@ -674,6 +747,11 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
     if (actionData && !isSubmitting && actionData !== lastActionDataRef.current) {
       lastActionDataRef.current = actionData;
 
+      // エラー時や競合時は楽観的stateをリセット
+      if (actionData.error || (actionData.toast?.type === 'warning')) {
+        setOptimisticBookmarks(loaderData.bookmarksByCategory);
+      }
+
       // フォームをクリア（すぐに次の入力が可能）
       if (formRef.current) {
         formRef.current.reset();
@@ -689,6 +767,19 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
       }
       
       if (actionData.success) {
+        // Broadcast: 他のタブに変更を通知
+        if (actionData.intent === 'add' && actionData.bookmarkId) {
+          broadcast({ type: 'bookmark-added', bookmarkId: actionData.bookmarkId });
+        } else if (actionData.intent === 'delete' && actionData.bookmarkId) {
+          broadcast({ type: 'bookmark-deleted', bookmarkId: actionData.bookmarkId });
+        } else if (actionData.intent === 'reorderBookmarks' && actionData.bookmarkId) {
+          broadcast({ type: 'bookmark-reordered', bookmarkId: actionData.bookmarkId, newOrder: 0 });
+        } else if (actionData.intent === 'reorderCategories' && actionData.categoryId) {
+          broadcast({ type: 'category-reordered', categoryId: actionData.categoryId, newOrder: 0 });
+        } else if (['toggleStar', 'toggleReadStatus', 'toggleArchive', 'refresh', 'edit'].includes(actionData.intent || '')) {
+          broadcast({ type: 'bookmark-updated', bookmarkId: actionData.bookmarkId || 0 });
+        }
+        
         // 処理中の場合、カウントを増やして定期リフレッシュを開始
         if (actionData.processing) {
           setProcessingCount(prev => prev + 1);
@@ -797,6 +888,20 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
         const [removed] = bookmarksInCategory.splice(draggedIndex, 1);
         bookmarksInCategory.splice(insertIndex, 0, removed);
 
+        // 楽観的UI更新: ローカルstateを即座に更新
+        setOptimisticBookmarks(prevBookmarks => {
+          const newBookmarks = prevBookmarks.map(major => ({
+            ...major,
+            minorCategories: major.minorCategories.map(minor => {
+              if (minor === targetCategory) {
+                return { ...minor, bookmarks: bookmarksInCategory };
+              }
+              return minor;
+            })
+          }));
+          return newBookmarks;
+        });
+
         // 新しい順序を計算
         const orders = bookmarksInCategory.map((bookmark, index) => ({
           id: bookmark.id,
@@ -833,6 +938,9 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
         const reordered = [...categories];
         const [removed] = reordered.splice(draggedIndex, 1);
         reordered.splice(insertIndex, 0, removed);
+
+        // 楽観的UI更新: ローカルstateを即座に更新
+        setOptimisticBookmarks(reordered);
 
         // 新しい順序を計算
         const orders = reordered.map((category, index) => ({
@@ -906,7 +1014,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                 Categories
               </h3>
               <nav className="space-y-1">
-                {loaderData.bookmarksByCategory.map((major) => (
+                {displayBookmarks.map((major) => (
                   <div key={major.majorCategory}>
                     <a
                       href={`#${major.majorCategory}`}
@@ -1239,7 +1347,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
               </div>
             )}
 
-            {loaderData.bookmarksByCategory.map((major, majorIndex) => {
+            {displayBookmarks.map((major, majorIndex) => {
               const isCategoryDragging = draggedItem?.type === 'category' && draggedItem.id === major.majorCategoryId;
               const isCategoryDragOver = dragOverItem?.type === 'category' && dragOverItem.id === major.majorCategoryId;
               const showCategoryBeforeLine = isCategoryDragOver && dragOverItem?.position === 'before';

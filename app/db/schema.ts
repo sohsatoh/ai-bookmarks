@@ -8,6 +8,7 @@ export const categories = sqliteTable("categories", {
   parentId: integer("parent_id").references((): AnySQLiteColumn => categories.id), // 小カテゴリの場合、親カテゴリID
   icon: text("icon"), // SVGアイコン（AI生成）
   displayOrder: integer("display_order").notNull().default(0), // 表示順序
+  version: integer("version").notNull().default(0), // 楽観的ロック用バージョン
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
@@ -31,6 +32,7 @@ export const bookmarks = sqliteTable("bookmarks", {
     .default("unread"),
   isArchived: integer("is_archived", { mode: "boolean" }).notNull().default(false),
   displayOrder: integer("display_order").notNull().default(0), // 表示順序
+  version: integer("version").notNull().default(0), // 楽観的ロック用バージョン
   // 将来のユーザー分離対応用（現在はNULL許容）
   userId: text("user_id"),
   createdAt: integer("created_at", { mode: "timestamp" })

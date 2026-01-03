@@ -890,7 +890,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                                 <h4 className="font-semibold text-base text-[#1D1D1F] dark:text-[#F5F5F7] mb-2 line-clamp-2 tracking-tight leading-snug">
                                   {bookmark.title}
                                 </h4>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-3 mb-3 leading-relaxed">
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 leading-relaxed">
                                   {bookmark.description}
                                 </p>
                                 <div className="flex flex-col gap-1 text-xs text-gray-400 dark:text-gray-500 font-medium">

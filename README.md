@@ -24,7 +24,7 @@ Cloudflare Workers AI、D1データベース、Drizzle ORMを使った自動カ�
 ### 1. 依存関係のインストール
 
 ```bash
-npm install
+pnpm install
 ```
 
 ### 2. D1データベースの作成
@@ -43,19 +43,19 @@ npx wrangler d1 create ai-bookmarks-db --env production
 
 ```bash
 # スキーマからマイグレーションファイルを生成
-npm run db:generate
+pnpm run db:generate
 
 # ローカルD1にマイグレーションを適用
-npm run db:migrate
+pnpm run db:migrate
 
 # 本番環境にマイグレーションを適用
-npm run db:migrate:prod
+pnpm run db:migrate:prod
 ```
 
 ### 4. 開発サーバーの起動
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 ブラウザで <http://localhost:5173> を開きます。
@@ -65,7 +65,7 @@ npm run dev
 ### 1. Cloudflare Workers へのデプロイ
 
 ```bash
-npm run deploy
+pnpm run deploy
 ```
 
 ### 2. Cloudflare Zero Trustによるアクセス制御
@@ -197,28 +197,28 @@ ALTER TABLE bookmarks ALTER COLUMN user_id SET NOT NULL;
 
 ```bash
 # 開発サーバー起動
-npm run dev
+pnpm run dev
 
 # ビルド
-npm run build
+pnpm run build
 
 # 型チェック
-npm run typecheck
+pnpm run typecheck
 
 # D1マイグレーション生成
-npm run db:generate
+pnpm run db:generate
 
 # ローカルD1マイグレーション適用
-npm run db:migrate
+pnpm run db:migrate
 
 # 本番D1マイグレーション適用
-npm run db:migrate:prod
+pnpm run db:migrate:prod
 
 # Drizzle Studio起動（GUIでDBを確認）
-npm run db:studio
+pnpm run db:studio
 
 # デプロイ
-npm run deploy
+pnpm run deploy
 ```
 
 ## ライセンス

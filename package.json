@@ -2,18 +2,19 @@
   "name": "ai-bookmarks",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@9.0.0",
   "scripts": {
     "build": "react-router build",
     "cf-typegen": "wrangler types",
-    "deploy": "npm run build && wrangler deploy",
+    "deploy": "pnpm run build && wrangler deploy",
     "dev": "react-router dev",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "wrangler d1 migrations apply ai-bookmarks-db --local",
     "db:migrate:prod": "wrangler d1 migrations apply ai-bookmarks-db",
     "db:studio": "drizzle-kit studio",
-    "postinstall": "npm run cf-typegen",
-    "preview": "npm run build && vite preview",
-    "typecheck": "npm run cf-typegen && react-router typegen && tsc -b"
+    "postinstall": "pnpm run cf-typegen",
+    "preview": "pnpm run build && vite preview",
+    "typecheck": "pnpm run cf-typegen && react-router typegen && tsc -b"
   },
   "dependencies": {
     "@cloudflare/ai": "^1.1.4",

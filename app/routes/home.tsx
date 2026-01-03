@@ -385,6 +385,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
   const currentSortBy = loaderData.sortBy;
   const currentSortOrder = loaderData.sortOrder;
   const [processingCount, setProcessingCount] = useState(0);
+  const lastActionDataRef = useRef<typeof actionData | null>(null);
   
   // 処理中のブックマークがある場合、定期的にリフレッシュ
   useEffect(() => {
@@ -399,7 +400,9 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
   
   // 新しく追加されたブックマークのアニメーションとトースト
   useEffect(() => {
-    if (actionData && !isSubmitting) {
+    if (actionData && !isSubmitting && actionData !== lastActionDataRef.current) {
+      lastActionDataRef.current = actionData;
+
       // フォームをクリア（すぐに次の入力が可能）
       if (formRef.current) {
         formRef.current.reset();
@@ -602,7 +605,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                           }`}
                         >
                           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                            <div className="flex-1 min-w-0 flex gap-4">
+                            <div className="flex-1 min-w-0 flex gap-4 overflow-hidden">
                               {/* Favicon */}
                               <div className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800 flex items-center justify-center flex-shrink-0 shadow-inner">
                                 <img

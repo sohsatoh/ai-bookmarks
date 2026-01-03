@@ -13,7 +13,7 @@ export function getDb(d1Database: D1Database) {
 /**
  * カテゴリを取得または作成
  */
-export async function getOrCreateCategory(db: ReturnType<typeof getDb>, name: string, type: "major" | "minor", parentId?: number): Promise<number> {
+export async function getOrCreateCategory(db: ReturnType<typeof getDb>, name: string, type: "major" | "minor", parentId?: number, icon?: string): Promise<number> {
   // 既存のカテゴリを検索
   const existing = await db.select().from(categories).where(eq(categories.name, name)).limit(1);
 
@@ -28,6 +28,7 @@ export async function getOrCreateCategory(db: ReturnType<typeof getDb>, name: st
       name,
       type,
       parentId: parentId || null,
+      icon: icon || null,
     })
     .returning({ id: categories.id });
 
@@ -75,65 +76,77 @@ export async function createBookmark(
  * 全ブックマークをカテゴリ別に取得
  */
 export async function getAllBookmarks(db: ReturnType<typeof getDb>): Promise<BookmarksByCategory[]> {
+  // 全カテゴリを取得（アイコン情報を含む）
+  const allCategories = await db.select().from(categories);
+  const categoryMap = new Map(allCategories.map((c) => [c.id, c]));
+
   // ブックマークとカテゴリをJOINして取得
   const results = await db
     .select({
       bookmark: bookmarks,
-      majorCategory: {
-        id: categories.id,
-        name: categories.name,
-      },
     })
     .from(bookmarks)
-    .innerJoin(categories, eq(bookmarks.majorCategoryId, categories.id))
     .orderBy(desc(bookmarks.createdAt));
 
-  // 小カテゴリ情報を別途取得
-  const minorCategories = await db.select().from(categories).where(eq(categories.type, "minor"));
-
-  const minorCategoryMap = new Map(minorCategories.map((c) => [c.id, c.name]));
-
   // データを整形
-  const bookmarksWithCategories: BookmarkWithCategories[] = results.map((r) => ({
-    ...r.bookmark,
-    majorCategory: r.majorCategory,
-    minorCategory: {
-      id: r.bookmark.minorCategoryId,
-      name: minorCategoryMap.get(r.bookmark.minorCategoryId) || "不明",
-    },
-  }));
+  const bookmarksWithCategories: BookmarkWithCategories[] = results.map((r) => {
+    const majorCat = categoryMap.get(r.bookmark.majorCategoryId);
+    const minorCat = categoryMap.get(r.bookmark.minorCategoryId);
+
+    return {
+      ...r.bookmark,
+      majorCategory: {
+        id: r.bookmark.majorCategoryId,
+        name: majorCat?.name || "不明",
+        icon: majorCat?.icon || null,
+      },
+      minorCategory: {
+        id: r.bookmark.minorCategoryId,
+        name: minorCat?.name || "不明",
+        icon: minorCat?.icon || null,
+      },
+    };
+  });
 
   // カテゴリ別にグループ化
-  const grouped = new Map<string, Map<string, BookmarkWithCategories[]>>();
+  const grouped = new Map<number, Map<number, BookmarkWithCategories[]>>();
 
   for (const bookmark of bookmarksWithCategories) {
-    const majorCat = bookmark.majorCategory.name;
-    const minorCat = bookmark.minorCategory.name;
+    const majorCatId = bookmark.majorCategory.id;
+    const minorCatId = bookmark.minorCategory.id;
 
-    if (!grouped.has(majorCat)) {
-      grouped.set(majorCat, new Map());
+    if (!grouped.has(majorCatId)) {
+      grouped.set(majorCatId, new Map());
     }
 
-    const minorMap = grouped.get(majorCat)!;
-    if (!minorMap.has(minorCat)) {
-      minorMap.set(minorCat, []);
+    const minorMap = grouped.get(majorCatId)!;
+    if (!minorMap.has(minorCatId)) {
+      minorMap.set(minorCatId, []);
     }
 
-    minorMap.get(minorCat)!.push(bookmark);
+    minorMap.get(minorCatId)!.push(bookmark);
   }
 
   // 最終的なデータ構造に変換（カテゴリは名前順にソート）
   return Array.from(grouped.entries())
-    .sort(([a], [b]) => a.localeCompare(b, "ja")) // 大カテゴリを名前順にソート
-    .map(([majorCategory, minorMap]) => ({
-      majorCategory,
-      minorCategories: Array.from(minorMap.entries())
-        .sort(([a], [b]) => a.localeCompare(b, "ja")) // 小カテゴリも名前順にソート
-        .map(([minorCategory, bookmarks]) => ({
-          minorCategory,
-          bookmarks,
-        })),
-    }));
+    .map(([majorCatId, minorMap]) => {
+      const majorCat = categoryMap.get(majorCatId);
+      return {
+        majorCategory: majorCat?.name || "不明",
+        majorCategoryIcon: majorCat?.icon || null,
+        minorCategories: Array.from(minorMap.entries())
+          .map(([minorCatId, bookmarks]) => {
+            const minorCat = categoryMap.get(minorCatId);
+            return {
+              minorCategory: minorCat?.name || "不明",
+              minorCategoryIcon: minorCat?.icon || null,
+              bookmarks,
+            };
+          })
+          .sort((a, b) => a.minorCategory.localeCompare(b.minorCategory, "ja")),
+      };
+    })
+    .sort((a, b) => a.majorCategory.localeCompare(b.majorCategory, "ja"));
 }
 
 /**

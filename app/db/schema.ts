@@ -6,6 +6,7 @@ export const categories = sqliteTable("categories", {
   name: text("name").notNull(),
   type: text("type", { enum: ["major", "minor"] }).notNull(), // major: 大カテゴリ, minor: 小カテゴリ
   parentId: integer("parent_id").references((): AnySQLiteColumn => categories.id), // 小カテゴリの場合、親カテゴリID
+  icon: text("icon"), // SVGアイコン（AI生成）
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),

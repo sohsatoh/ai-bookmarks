@@ -133,3 +133,104 @@ export async function generateBookmarkMetadata(ai: Ai, url: string, pageTitle: s
     };
   }
 }
+
+/**
+ * AIを使用してカテゴリアイコン（SVG）を生成
+ * シンプルなアイコン風のSVGを生成します
+ */
+export async function generateCategoryIcon(ai: Ai, categoryName: string, categoryType: "major" | "minor"): Promise<string> {
+  const systemPrompt = `あなたはシンプルで美しいSVGアイコンを生成する専門家です。
+カテゴリ名に基づいて、24x24のシンプルなSVGアイコンを生成してください。
+
+【要件】
+- サイズ: viewBox="0 0 24 24" width="24" height="24"
+- スタイル: シンプルで認識しやすい、線画またはフラットデザイン
+- 色: currentColor を使用（テーマに応じて色が変わるように）
+- 背景なし、透明
+- XMLヘッダー不要、<svg>タグから始めてください
+
+【出力形式】
+純粋なSVGコードのみを出力してください。説明文やマークダウンは不要です。`;
+
+  const userInput = `カテゴリ名: ${sanitizeForPrompt(categoryName, 50)}
+カテゴリタイプ: ${categoryType === "major" ? "大カテゴリ" : "小カテゴリ"}
+
+このカテゴリを表現するシンプルなアイコンを生成してください。`;
+
+  try {
+    console.log(`[AI] Generating icon for category: ${categoryName}`);
+
+    const response = await ai.run("@cf/openai/gpt-oss-20b", {
+      instructions: systemPrompt,
+      input: userInput,
+      max_tokens: 500,
+    });
+
+    // レスポンスからテキストを抽出
+    let responseText = "";
+    if (typeof response === "string") {
+      responseText = response;
+    } else if (response && typeof response === "object") {
+      const output = (response as any).output;
+      if (Array.isArray(output)) {
+        const messageObj = output.find((item: any) => item.type === "message" && item.status === "completed");
+        if (messageObj?.content && Array.isArray(messageObj.content)) {
+          const contentItem = messageObj.content.find((item: any) => item.type === "output_text" || item.type === "text" || typeof item === "string");
+          responseText = typeof contentItem === "string" ? contentItem : contentItem?.text || "";
+        }
+      }
+      if (!responseText) {
+        responseText = (response as { response?: string }).response || "";
+      }
+    }
+
+    if (!responseText) {
+      console.error(`[AI] Could not extract icon SVG from response`);
+      return getDefaultIcon(categoryType);
+    }
+
+    // SVGコードを抽出（```svg または <svg で始まるパターン）
+    const svgRegex1 = /```svg\s*([\s\S]*?)\s*```/;
+    const svgRegex2 = /(<svg[\s\S]*?<\/svg>)/i;
+    const svgMatch = svgRegex1.exec(responseText) || svgRegex2.exec(responseText);
+
+    if (!svgMatch) {
+      console.error(`[AI] Could not extract SVG from text`);
+      return getDefaultIcon(categoryType);
+    }
+
+    const svgCode = svgMatch[1].trim();
+
+    // セキュリティチェック: scriptタグやイベントハンドラーがないか確認
+    const dangerousPatterns = /<script|onerror|onclick|onload|javascript:/i;
+    if (dangerousPatterns.test(svgCode)) {
+      console.warn("Potential XSS attempt detected in SVG");
+      return getDefaultIcon(categoryType);
+    }
+
+    // SVGタグの基本検証
+    if (!svgCode.startsWith("<svg") || !svgCode.endsWith("</svg>")) {
+      console.error(`[AI] Invalid SVG format`);
+      return getDefaultIcon(categoryType);
+    }
+
+    console.log(`[AI] Successfully generated icon SVG`);
+    return svgCode;
+  } catch (error) {
+    console.error("[AI] Icon generation failed:", error);
+    return getDefaultIcon(categoryType);
+  }
+}
+
+/**
+ * デフォルトアイコンを返す
+ */
+function getDefaultIcon(categoryType: "major" | "minor"): string {
+  if (categoryType === "major") {
+    // 大カテゴリ用のフォルダーアイコン
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`;
+  } else {
+    // 小カテゴリ用のタグアイコン
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>`;
+  }
+}

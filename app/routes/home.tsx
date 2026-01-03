@@ -12,7 +12,7 @@ import {
 } from "~/services/db.server";
 import { bookmarks } from "~/db/schema";
 import { eq } from "drizzle-orm";
-import { generateBookmarkMetadata } from "~/services/ai.server";
+import { generateBookmarkMetadata, generateCategoryIcon } from "~/services/ai.server";
 import { fetchPageMetadata, validateUrl } from "~/services/scraper.server";
 import { checkRateLimit, getClientIp } from "~/services/rate-limit.server";
 import { ToastContainer, type ToastMessage } from "~/components/Toast";
@@ -201,6 +201,52 @@ export async function action({ request, context }: Route.ActionArgs) {
     }
   }
 
+  // 編集処理
+  if (intent === "edit") {
+    const bookmarkId = formData.get("bookmarkId");
+    const title = formData.get("title") as string;
+    const description = formData.get("description") as string;
+    const majorCategory = formData.get("majorCategory") as string;
+    const minorCategory = formData.get("minorCategory") as string;
+
+    // 入力検証
+    if (!bookmarkId || typeof bookmarkId !== "string") {
+      return { error: "無効なリクエストです" };
+    }
+
+    const id = Number(bookmarkId);
+    if (isNaN(id) || id <= 0) {
+      return { error: "無効なIDです" };
+    }
+
+    if (!title || !description || !majorCategory || !minorCategory) {
+      return { error: "すべての項目を入力してください" };
+    }
+
+    try {
+      // カテゴリを取得または作成
+      const majorCategoryId = await getOrCreateCategory(db, majorCategory, "major");
+      const minorCategoryId = await getOrCreateCategory(db, minorCategory, "minor", majorCategoryId);
+
+      // ブックマークを更新
+      await db
+        .update(bookmarks)
+        .set({
+          title: title.slice(0, 500),
+          description: description.slice(0, 1000),
+          majorCategoryId,
+          minorCategoryId,
+          updatedAt: new Date(),
+        })
+        .where(eq(bookmarks.id, id));
+
+      return { success: true, toast: { type: "success" as const, title: "更新完了", message: "ブックマークを更新しました" } };
+    } catch (error) {
+      console.error("Edit failed:", error);
+      return { error: "更新に失敗しました" };
+    }
+  }
+
   // ブックマーク追加処理
   const url = formData.get("url") as string;
 
@@ -259,17 +305,26 @@ export async function action({ request, context }: Route.ActionArgs) {
 
           console.log("[Background] AI processing completed, saving to DB");
 
+          // カテゴリアイコンをAIで生成
+          const [majorIcon, minorIcon] = await Promise.all([
+            generateCategoryIcon(context.cloudflare.env.AI, metadata.majorCategory, "major"),
+            generateCategoryIcon(context.cloudflare.env.AI, metadata.minorCategory, "minor"),
+          ]);
+
           // カテゴリを取得または作成
           const majorCategoryId = await getOrCreateCategory(
             db,
             metadata.majorCategory,
-            "major"
+            "major",
+            undefined,
+            majorIcon
           );
           const minorCategoryId = await getOrCreateCategory(
             db,
             metadata.minorCategory,
             "minor",
-            majorCategoryId
+            majorCategoryId,
+            minorIcon
           );
 
           // ブックマーク作成
@@ -319,6 +374,13 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
   const [justAdded, setJustAdded] = useState<number[]>([]);
   const formRef = useRef<HTMLFormElement>(null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [editingBookmark, setEditingBookmark] = useState<{
+    id: number;
+    title: string;
+    description: string;
+    majorCategory: string;
+    minorCategory: string;
+  } | null>(null);
   
   const currentSortBy = loaderData.sortBy;
   const currentSortOrder = loaderData.sortOrder;
@@ -538,13 +600,19 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
           <div className="space-y-12">
             {loaderData.bookmarksByCategory.map((major) => (
               <div key={major.majorCategory} className="space-y-6">
-                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">
+                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight flex items-center gap-3">
+                  {major.majorCategoryIcon && (
+                    <span dangerouslySetInnerHTML={{ __html: major.majorCategoryIcon }} className="text-blue-500" />
+                  )}
                   {major.majorCategory}
                 </h2>
 
                 {major.minorCategories.map((minor) => (
                   <div key={minor.minorCategory} className="space-y-4">
-                    <h3 className="text-base font-medium text-gray-600 dark:text-gray-400 pl-4 border-l-4 border-blue-500">
+                    <h3 className="text-base font-medium text-gray-600 dark:text-gray-400 pl-4 border-l-4 border-blue-500 flex items-center gap-2">
+                      {minor.minorCategoryIcon && (
+                        <span dangerouslySetInnerHTML={{ __html: minor.minorCategoryIcon }} className="text-blue-500 flex-shrink-0" />
+                      )}
                       {minor.minorCategory}
                     </h3>
 
@@ -553,12 +621,12 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                         return (
                         <div
                           key={bookmark.id}
-                          className={`bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 p-6 group ${
+                          className={`bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 p-4 sm:p-6 group ${
                             bookmark.isArchived ? 'opacity-50' : ''
                           }`}
                         >
-                          <div className="flex items-start justify-between gap-6">
-                            <div className="flex-1 min-w-0 flex gap-4">
+                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 sm:gap-6">
+                            <div className="flex-1 min-w-0 flex gap-3 sm:gap-4">
                               {/* Favicon */}
                               <img
                                 src={`https://www.google.com/s2/favicons?domain=${new URL(bookmark.url).hostname}&sz=32`}
@@ -575,14 +643,14 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                                 rel="noopener noreferrer"
                                 className="flex-1 min-w-0 block group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors"
                               >
-                                <h4 className="font-semibold text-base text-gray-900 dark:text-white mb-3 line-clamp-2 leading-snug">
+                                <h4 className="font-semibold text-base text-gray-900 dark:text-white mb-2 sm:mb-3 line-clamp-2 leading-snug">
                                   {bookmark.title}
                                 </h4>
-                                <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mb-4 leading-relaxed">
+                                <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mb-3 sm:mb-4 leading-relaxed">
                                   {bookmark.description}
                                 </p>
                                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-xs text-gray-500 dark:text-gray-500">
-                                  <span className="truncate break-all font-mono">
+                                  <span className="truncate break-all font-mono text-xs">
                                     {bookmark.url}
                                   </span>
                                   <span className="shrink-0 flex items-center gap-1.5">
@@ -668,6 +736,24 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                                   )}
                                 </button>
                               </Form>
+
+                              {/* 編集ボタン */}
+                              <button
+                                type="button"
+                                onClick={() => setEditingBookmark({
+                                  id: bookmark.id,
+                                  title: bookmark.title,
+                                  description: bookmark.description,
+                                  majorCategory: bookmark.majorCategory.name,
+                                  minorCategory: bookmark.minorCategory.name,
+                                })}
+                                className="p-2 text-gray-400 hover:text-purple-500 dark:hover:text-purple-400 transition-colors rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                                title="編集"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
                               
                               {/* 削除ボタン */}
                               <Form method="post">
@@ -709,6 +795,108 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
           </div>
         )}
       </div>
+
+      {/* 編集モーダル */}
+      {editingBookmark && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setEditingBookmark(null)}>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 sm:p-8">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">ブックマークを編集</h2>
+                <button
+                  onClick={() => setEditingBookmark(null)}
+                  className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <Form method="post" onSubmit={() => setEditingBookmark(null)}>
+                <input type="hidden" name="intent" value="edit" />
+                <input type="hidden" name="bookmarkId" value={editingBookmark.id} />
+
+                <div className="space-y-6">
+                  <div>
+                    <label htmlFor="edit-title" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      タイトル
+                    </label>
+                    <input
+                      id="edit-title"
+                      name="title"
+                      type="text"
+                      defaultValue={editingBookmark.title}
+                      required
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="edit-description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      説明
+                    </label>
+                    <textarea
+                      id="edit-description"
+                      name="description"
+                      rows={4}
+                      defaultValue={editingBookmark.description}
+                      required
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label htmlFor="edit-major-category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        大カテゴリ
+                      </label>
+                      <input
+                        id="edit-major-category"
+                        name="majorCategory"
+                        type="text"
+                        defaultValue={editingBookmark.majorCategory}
+                        required
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="edit-minor-category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        小カテゴリ
+                      </label>
+                      <input
+                        id="edit-minor-category"
+                        name="minorCategory"
+                        type="text"
+                        defaultValue={editingBookmark.minorCategory}
+                        required
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setEditingBookmark(null)}
+                      className="px-6 py-3 rounded-xl text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 font-medium transition-colors"
+                    >
+                      キャンセル
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-6 py-3 rounded-xl text-white bg-blue-500 hover:bg-blue-600 font-medium transition-colors shadow-md hover:shadow-lg"
+                    >
+                      保存
+                    </button>
+                  </div>
+                </div>
+              </Form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

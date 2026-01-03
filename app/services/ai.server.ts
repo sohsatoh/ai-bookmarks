@@ -25,6 +25,8 @@ export async function generateBookmarkMetadata(ai: Ai, url: string, pageTitle: s
 
 【重要】既存カテゴリが提示されている場合、必ずそのリストから最も適切なものを選択してください。新しいカテゴリは既存のものがどれも適切でない場合のみ作成します。
 
+【固有名詞・技術用語の扱い】企業名、製品名、サービス名、技術用語（例：Google、GitHub、React、AWS等）は翻訳せず、そのまま原語で使用してください。
+
 出力形式:
 {"majorCategory":"大分類","minorCategory":"小分類","description":"日本語で80文字以内の説明"}`;
 

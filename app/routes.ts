@@ -17,4 +17,6 @@ export default [
   route("api/files/delete/:fileId", "routes/api.files.delete.$fileId.tsx"),
   route("privacy", "routes/privacy.tsx"),
   route("terms", "routes/terms.tsx"),
+  route("robots.txt", "routes/robots[.]txt.tsx"),
+  route("sitemap.xml", "routes/sitemap[.]xml.tsx"),
 ] satisfies RouteConfig;

@@ -1,7 +1,14 @@
-import { Form, useNavigation, useRevalidator, redirect } from "react-router";
+import {
+  Form,
+  useNavigation,
+  useRevalidator,
+  redirect,
+  useFetcher,
+} from "react-router";
 import { useEffect, useState, useRef } from "react";
 import type { Route } from "./+types/home";
 import { getDb, getAllBookmarks, getAllCategories } from "~/services/db.server";
+import { getUserFiles } from "~/services/file.server";
 import {
   initBroadcastChannel,
   broadcast,
@@ -56,9 +63,10 @@ export async function loader({ context, request }: Route.LoaderArgs) {
 
   const db = getDb(context.cloudflare.env.DB);
 
-  const [bookmarksByCategory, allCategories] = await Promise.all([
+  const [bookmarksByCategory, allCategories, userFiles] = await Promise.all([
     getAllBookmarks(db, session.user.id),
     getAllCategories(db),
+    getUserFiles(session.user.id, context),
   ]);
 
   // スター付きブックマークを収集
@@ -72,6 +80,7 @@ export async function loader({ context, request }: Route.LoaderArgs) {
     bookmarksByCategory,
     starredBookmarks,
     allCategories,
+    userFiles,
     user: session.user,
     isAdmin: hasAdminRole(session),
   };
@@ -202,6 +211,8 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
   const isSubmitting = navigation.state === "submitting";
   const revalidator = useRevalidator();
   const formRef = useRef<HTMLFormElement>(null);
+  const fileUploadFetcher = useFetcher();
+  const fileDeleteFetcher = useFetcher();
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [editingBookmark, setEditingBookmark] = useState<{
     id: number;
@@ -210,9 +221,14 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
     majorCategory: string;
     minorCategory: string;
   } | null>(null);
+  const [activeTab, setActiveTab] = useState<"bookmarks" | "files">(
+    "bookmarks"
+  );
 
   const [processingCount, setProcessingCount] = useState(0);
   const lastActionDataRef = useRef<typeof actionData | null>(null);
+  const lastUploadFetcherDataRef = useRef<typeof fileUploadFetcher.data | null>(null);
+  const lastDeleteFetcherDataRef = useRef<typeof fileDeleteFetcher.data | null>(null);
   const previousBookmarkCountRef = useRef(0);
 
   // 楽観的UI更新用（ローカルで即座に順序を変更）
@@ -441,6 +457,78 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
     }
   }, [actionData, isSubmitting, revalidator, loaderData.bookmarksByCategory]);
 
+  // ファイルアップロードのレスポンス処理
+  useEffect(() => {
+    if (
+      fileUploadFetcher.data &&
+      fileUploadFetcher.state === "idle" &&
+      fileUploadFetcher.data !== lastUploadFetcherDataRef.current
+    ) {
+      lastUploadFetcherDataRef.current = fileUploadFetcher.data;
+
+      const data = fileUploadFetcher.data as {
+        success?: boolean;
+        error?: string;
+        toast?: { type: string; title: string; message: string };
+      };
+
+      if (data.toast?.title && data.toast?.message) {
+        const toastId = Date.now().toString();
+        const toastType = data.toast.type as "success" | "error" | "warning";
+        setToasts((prev) => [
+          ...prev,
+          {
+            id: toastId,
+            type: toastType,
+            title: data.toast!.title,
+            message: data.toast!.message,
+          },
+        ]);
+      }
+
+      if (data.success) {
+        // ファイル一覧を再読み込み
+        revalidator.revalidate();
+      }
+    }
+  }, [fileUploadFetcher.data, fileUploadFetcher.state, revalidator]);
+
+  // ファイル削除のレスポンス処理
+  useEffect(() => {
+    if (
+      fileDeleteFetcher.data &&
+      fileDeleteFetcher.state === "idle" &&
+      fileDeleteFetcher.data !== lastDeleteFetcherDataRef.current
+    ) {
+      lastDeleteFetcherDataRef.current = fileDeleteFetcher.data;
+
+      const data = fileDeleteFetcher.data as {
+        success?: boolean;
+        error?: string;
+        toast?: { type: string; title: string; message: string };
+      };
+
+      if (data.toast?.title && data.toast?.message) {
+        const toastId = Date.now().toString();
+        const toastType = data.toast.type as "success" | "error" | "warning";
+        setToasts((prev) => [
+          ...prev,
+          {
+            id: toastId,
+            type: toastType,
+            title: data.toast!.title,
+            message: data.toast!.message,
+          },
+        ]);
+      }
+
+      if (data.success) {
+        // ファイル一覧を再読み込み
+        revalidator.revalidate();
+      }
+    }
+  }, [fileDeleteFetcher.data, fileDeleteFetcher.state, revalidator]);
+
   const handleDismissToast = (id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
@@ -541,211 +629,181 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
 
           {/* メインコンテンツ */}
           <main className="flex-1 min-w-0">
-            {/* ヒーローセクション */}
-            <header className="mb-12 text-center sm:text-left">
-              <h2 className="text-4xl sm:text-5xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4 tracking-tight leading-tight">
-                Organize your web, <br className="hidden sm:block" />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600">
-                  intelligently.
-                </span>
-              </h2>
-              <p className="text-sm sm:text-base md:text-lg text-gray-500 dark:text-gray-400 max-w-xl leading-relaxed">
-                AIがあなたのブックマークを自動で整理。
-              </p>
-            </header>
+            {/* タブ切り替え */}
+            <div className="mb-8 border-b border-gray-200 dark:border-gray-700">
+              <nav className="flex space-x-8" aria-label="Tabs">
+                <button
+                  onClick={() => setActiveTab("bookmarks")}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                    activeTab === "bookmarks"
+                      ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
+                  }`}
+                >
+                  ブックマーク
+                </button>
+                <button
+                  onClick={() => setActiveTab("files")}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors flex items-center gap-2 ${
+                    activeTab === "files"
+                      ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
+                  }`}
+                >
+                  ファイル ({loaderData.userFiles.length})
+                  <span className="px-1.5 py-0.5 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                    Beta
+                  </span>
+                </button>
+              </nav>
+            </div>
 
-            {/* URL入力フォーム - iOS検索バー風 */}
-            <div className="mb-16 relative z-20">
-              <Form method="post" className="relative group" ref={formRef}>
-                <input type="hidden" name="intent" value="add" />
-                <div className="relative transition-transform duration-300 ease-out group-focus-within:scale-[1.02]">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <svg
-                      className="h-5 w-5 text-gray-400"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 4v16m8-8H4"
-                      />
-                    </svg>
-                  </div>
-                  <input
-                    type="url"
-                    id="url"
-                    name="url"
-                    placeholder="https://example.com"
-                    required
-                    disabled={isSubmitting}
-                    className="block w-full pl-11 pr-32 py-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-gray-900 dark:text-white placeholder-gray-400 shadow-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:outline-none text-lg transition-all"
-                  />
-                  <div className="absolute inset-y-0 right-2 flex items-center">
-                    <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="px-4 py-2 bg-[#0071e3] hover:bg-[#0077ED] text-white text-sm font-medium rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-                    >
-                      {isSubmitting ? (
+            {/* ブックマークタブ */}
+            {activeTab === "bookmarks" && (
+              <>
+                {/* ヒーローセクション */}
+                <header className="mb-12 text-center sm:text-left">
+                  <h2 className="text-4xl sm:text-5xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4 tracking-tight leading-tight">
+                    Organize your web, <br className="hidden sm:block" />
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600">
+                      intelligently.
+                    </span>
+                  </h2>
+                  <p className="text-sm sm:text-base md:text-lg text-gray-500 dark:text-gray-400 max-w-xl leading-relaxed">
+                    AIがあなたのブックマークを自動で整理。
+                  </p>
+                </header>
+
+                {/* URL入力フォーム - iOS検索バー風 */}
+                <div className="mb-16 relative z-20">
+                  <Form method="post" className="relative group" ref={formRef}>
+                    <input type="hidden" name="intent" value="add" />
+                    <div className="relative transition-transform duration-300 ease-out group-focus-within:scale-[1.02]">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                         <svg
-                          className="animate-spin h-4 w-4"
+                          className="h-5 w-5 text-gray-400"
                           xmlns="http://www.w3.org/2000/svg"
                           fill="none"
                           viewBox="0 0 24 24"
+                          stroke="currentColor"
                         >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          ></circle>
                           <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          ></path>
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 4v16m8-8H4"
+                          />
                         </svg>
-                      ) : (
-                        "Add"
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* エラー・成功メッセージ */}
-                <div className="absolute top-full left-0 right-0 mt-2 px-2">
-                  {actionData?.error && (
-                    <p className="text-red-500 text-sm animate-fade-in pl-2">
-                      {actionData.error}
-                    </p>
-                  )}
-                  {actionData?.success && (
-                    <p className="text-green-500 text-sm animate-fade-in pl-2">
-                      Added successfully
-                    </p>
-                  )}
-                </div>
-              </Form>
-            </div>
-
-            {/* ブックマーク一覧 */}
-            {loaderData.bookmarksByCategory.length === 0 ? (
-              <div className="text-center py-20">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 mb-6">
-                  <svg
-                    className="w-8 h-8 text-gray-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                  No bookmarks yet
-                </h3>
-                <p className="text-gray-500 dark:text-gray-400">
-                  Add a URL above to get started.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-16">
-                {/* Pinnedセクション */}
-                {loaderData.starredBookmarks.length > 0 && (
-                  <div id="pinned" className="space-y-8 scroll-mt-24">
-                    <div className="flex items-center gap-3 pb-4 border-b border-gray-200 dark:border-gray-800">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-6 w-6 text-yellow-500 dark:text-yellow-400"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                      >
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                      </svg>
-                      <h2 className="text-xl sm:text-2xl md:text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">
-                        Pinned
-                      </h2>
-                      <span className="text-sm text-gray-400">
-                        ({loaderData.starredBookmarks.length})
-                      </span>
-                    </div>
-
-                    <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                      {loaderData.starredBookmarks.map((bookmark, index) => (
-                        <BookmarkCardFull
-                          key={bookmark.id}
-                          bookmark={bookmark}
-                          index={index}
-                          isDragging={
-                            draggedItem?.type === "bookmark" &&
-                            draggedItem.id === bookmark.id
-                          }
-                          isDragOver={
-                            dragOverItem?.type === "bookmark" &&
-                            dragOverItem.id === bookmark.id
-                          }
-                          dragOverPosition={dragOverItem?.position}
-                          onDragStart={handleDragStart}
-                          onDragOver={handleDragOver}
-                          onDrop={handleDrop}
-                          onDragEnd={handleDragEnd}
-                          onEdit={setEditingBookmark}
-                          isPinned={true}
-                          isAdmin={loaderData.isAdmin}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {displayBookmarks.map((major, majorIndex) => {
-                  return (
-                    <div
-                      key={major.majorCategory}
-                      id={major.majorCategory}
-                      className="space-y-8 scroll-mt-24 relative"
-                    >
-                      <CategoryHeader
-                        majorCategory={major.majorCategory}
-                        majorIndex={majorIndex}
-                        totalCategories={displayBookmarks.length}
-                        onMoveUp={() =>
-                          handleMoveCategoryUp(
-                            major.majorCategoryId,
-                            majorIndex
-                          )
-                        }
-                        onMoveDown={() =>
-                          handleMoveCategoryDown(
-                            major.majorCategoryId,
-                            majorIndex
-                          )
-                        }
+                      </div>
+                      <input
+                        type="url"
+                        id="url"
+                        name="url"
+                        placeholder="https://example.com"
+                        required
+                        disabled={isSubmitting}
+                        className="block w-full pl-11 pr-32 py-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-gray-900 dark:text-white placeholder-gray-400 shadow-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:outline-none text-lg transition-all"
                       />
-
-                      {major.minorCategories.map((minor) => (
-                        <div
-                          key={minor.minorCategory}
-                          id={`${major.majorCategory}-${minor.minorCategory}`}
-                          className="space-y-4 scroll-mt-24"
+                      <div className="absolute inset-y-0 right-2 flex items-center">
+                        <button
+                          type="submit"
+                          disabled={isSubmitting}
+                          className="px-4 py-2 bg-[#0071e3] hover:bg-[#0077ED] text-white text-sm font-medium rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                         >
-                          <h3 className="text-xs sm:text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider pl-1 flex items-center gap-2">
-                            {minor.minorCategory}
-                          </h3>
+                          {isSubmitting ? (
+                            <svg
+                              className="animate-spin h-4 w-4"
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              ></circle>
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              ></path>
+                            </svg>
+                          ) : (
+                            "Add"
+                          )}
+                        </button>
+                      </div>
+                    </div>
 
-                          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                            {minor.bookmarks.map((bookmark, index) => (
+                    {/* エラー・成功メッセージ */}
+                    <div className="absolute top-full left-0 right-0 mt-2 px-2">
+                      {actionData?.error && (
+                        <p className="text-red-500 text-sm animate-fade-in pl-2">
+                          {actionData.error}
+                        </p>
+                      )}
+                      {actionData?.success && (
+                        <p className="text-green-500 text-sm animate-fade-in pl-2">
+                          Added successfully
+                        </p>
+                      )}
+                    </div>
+                  </Form>
+                </div>
+
+                {/* ブックマーク一覧 */}
+                {loaderData.bookmarksByCategory.length === 0 ? (
+                  <div className="text-center py-20">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 mb-6">
+                      <svg
+                        className="w-8 h-8 text-gray-400"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={1.5}
+                          d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+                        />
+                      </svg>
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                      No bookmarks yet
+                    </h3>
+                    <p className="text-gray-500 dark:text-gray-400">
+                      Add a URL above to get started.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-16">
+                    {/* Pinnedセクション */}
+                    {loaderData.starredBookmarks.length > 0 && (
+                      <div id="pinned" className="space-y-8 scroll-mt-24">
+                        <div className="flex items-center gap-3 pb-4 border-b border-gray-200 dark:border-gray-800">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-6 w-6 text-yellow-500 dark:text-yellow-400"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                          >
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                          </svg>
+                          <h2 className="text-xl sm:text-2xl md:text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">
+                            Pinned
+                          </h2>
+                          <span className="text-sm text-gray-400">
+                            ({loaderData.starredBookmarks.length})
+                          </span>
+                        </div>
+
+                        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                          {loaderData.starredBookmarks.map(
+                            (bookmark, index) => (
                               <BookmarkCardFull
                                 key={bookmark.id}
                                 bookmark={bookmark}
@@ -763,188 +821,440 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                                 onDragOver={handleDragOver}
                                 onDrop={handleDrop}
                                 onDragEnd={handleDragEnd}
-                                categoryId={minor.minorCategoryId}
-                                isPinned={false}
                                 onEdit={setEditingBookmark}
+                                isPinned={true}
                                 isAdmin={loaderData.isAdmin}
                               />
-                            ))}
-                          </div>
+                            )
+                          )}
                         </div>
-                      ))}
+                      </div>
+                    )}
+
+                    {displayBookmarks.map((major, majorIndex) => {
+                      return (
+                        <div
+                          key={major.majorCategory}
+                          id={major.majorCategory}
+                          className="space-y-8 scroll-mt-24 relative"
+                        >
+                          <CategoryHeader
+                            majorCategory={major.majorCategory}
+                            majorIndex={majorIndex}
+                            totalCategories={displayBookmarks.length}
+                            onMoveUp={() =>
+                              handleMoveCategoryUp(
+                                major.majorCategoryId,
+                                majorIndex
+                              )
+                            }
+                            onMoveDown={() =>
+                              handleMoveCategoryDown(
+                                major.majorCategoryId,
+                                majorIndex
+                              )
+                            }
+                          />
+
+                          {major.minorCategories.map((minor) => (
+                            <div
+                              key={minor.minorCategory}
+                              id={`${major.majorCategory}-${minor.minorCategory}`}
+                              className="space-y-4 scroll-mt-24"
+                            >
+                              <h3 className="text-xs sm:text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider pl-1 flex items-center gap-2">
+                                {minor.minorCategory}
+                              </h3>
+
+                              <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                                {minor.bookmarks.map((bookmark, index) => (
+                                  <BookmarkCardFull
+                                    key={bookmark.id}
+                                    bookmark={bookmark}
+                                    index={index}
+                                    isDragging={
+                                      draggedItem?.type === "bookmark" &&
+                                      draggedItem.id === bookmark.id
+                                    }
+                                    isDragOver={
+                                      dragOverItem?.type === "bookmark" &&
+                                      dragOverItem.id === bookmark.id
+                                    }
+                                    dragOverPosition={dragOverItem?.position}
+                                    onDragStart={handleDragStart}
+                                    onDragOver={handleDragOver}
+                                    onDrop={handleDrop}
+                                    onDragEnd={handleDragEnd}
+                                    categoryId={minor.minorCategoryId}
+                                    isPinned={false}
+                                    onEdit={setEditingBookmark}
+                                    isAdmin={loaderData.isAdmin}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* 編集モーダル */}
+                {editingBookmark && (
+                  <div
+                    className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+                    onClick={() => setEditingBookmark(null)}
+                  >
+                    <div
+                      className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-white/20 dark:border-white/10"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="p-6 sm:p-8">
+                        <div className="flex items-center justify-between mb-8">
+                          <h2 className="text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">
+                            Edit Bookmark
+                          </h2>
+                          <button
+                            onClick={() => setEditingBookmark(null)}
+                            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-6 w-6"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M6 18L18 6M6 6l12 12"
+                              />
+                            </svg>
+                          </button>
+                        </div>
+
+                        <Form
+                          method="post"
+                          onSubmit={() => setEditingBookmark(null)}
+                        >
+                          <input type="hidden" name="intent" value="edit" />
+                          <input
+                            type="hidden"
+                            name="bookmarkId"
+                            value={editingBookmark.id}
+                          />
+
+                          <div className="space-y-6">
+                            <div>
+                              <label
+                                htmlFor="edit-title"
+                                className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 ml-1"
+                              >
+                                Title
+                              </label>
+                              <input
+                                id="edit-title"
+                                name="title"
+                                type="text"
+                                defaultValue={editingBookmark.title}
+                                required
+                                className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                              />
+                            </div>
+
+                            <div>
+                              <label
+                                htmlFor="edit-description"
+                                className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 ml-1"
+                              >
+                                Description
+                              </label>
+                              <textarea
+                                id="edit-description"
+                                name="description"
+                                rows={4}
+                                defaultValue={editingBookmark.description}
+                                required
+                                className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
+                              />
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div>
+                                <label
+                                  htmlFor="edit-major-category"
+                                  className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 ml-1"
+                                >
+                                  Category
+                                </label>
+                                <select
+                                  id="edit-major-category"
+                                  name="majorCategory"
+                                  value={editingBookmark.majorCategory}
+                                  onChange={(e) =>
+                                    setEditingBookmark({
+                                      ...editingBookmark,
+                                      majorCategory: e.target.value,
+                                    })
+                                  }
+                                  required
+                                  className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none cursor-pointer"
+                                >
+                                  <option value="">選択してください</option>
+                                  {loaderData.allCategories
+                                    ?.filter((c) => c.type === "major")
+                                    .map((c) => (
+                                      <option key={c.id} value={c.name}>
+                                        {c.name}
+                                      </option>
+                                    ))}
+                                </select>
+                              </div>
+
+                              <div>
+                                <label
+                                  htmlFor="edit-minor-category"
+                                  className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 ml-1"
+                                >
+                                  Subcategory
+                                </label>
+                                <select
+                                  id="edit-minor-category"
+                                  name="minorCategory"
+                                  value={editingBookmark.minorCategory}
+                                  onChange={(e) =>
+                                    setEditingBookmark({
+                                      ...editingBookmark,
+                                      minorCategory: e.target.value,
+                                    })
+                                  }
+                                  required
+                                  className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none cursor-pointer"
+                                >
+                                  <option value="">選択してください</option>
+                                  {loaderData.allCategories
+                                    ?.filter((c) => c.type === "minor")
+                                    .map((c) => (
+                                      <option key={c.id} value={c.name}>
+                                        {c.name}
+                                      </option>
+                                    ))}
+                                </select>
+                              </div>
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-6">
+                              <button
+                                type="button"
+                                onClick={() => setEditingBookmark(null)}
+                                className="px-6 py-2.5 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 font-medium transition-colors"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="submit"
+                                className="px-6 py-2.5 rounded-xl text-white bg-[#0071e3] hover:bg-[#0077ED] font-medium transition-colors shadow-sm"
+                              >
+                                Save Changes
+                              </button>
+                            </div>
+                          </div>
+                        </Form>
+                      </div>
                     </div>
-                  );
-                })}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ファイルタブ */}
+            {activeTab === "files" && (
+              <div className="space-y-6">
+                {/* ファイルアップロードフォーム */}
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                    ファイルをアップロード
+                  </h3>
+                  <fileUploadFetcher.Form
+                    method="post"
+                    action="/api/files/upload"
+                    encType="multipart/form-data"
+                    className="space-y-4"
+                  >
+                    <div>
+                      <input
+                        type="file"
+                        name="file"
+                        required
+                        disabled={fileUploadFetcher.state === "submitting"}
+                        className="block w-full text-sm text-gray-900 dark:text-white
+                          file:mr-4 file:py-2 file:px-4
+                          file:rounded-lg file:border-0
+                          file:text-sm file:font-semibold
+                          file:bg-blue-50 file:text-blue-700
+                          hover:file:bg-blue-100
+                          dark:file:bg-blue-900 dark:file:text-blue-300
+                          dark:hover:file:bg-blue-800
+                          disabled:opacity-50 disabled:cursor-not-allowed"
+                      />
+                      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        最大5MB、
+                        {loaderData.isAdmin ? "無制限" : "10ファイルまで"}
+                      </p>
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={fileUploadFetcher.state === "submitting"}
+                      className="px-6 py-2.5 rounded-xl text-white bg-blue-600 hover:bg-blue-700 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {fileUploadFetcher.state === "submitting"
+                        ? "アップロード中..."
+                        : "アップロード"}
+                    </button>
+                  </fileUploadFetcher.Form>
+                </div>
+
+                {/* ファイル一覧 */}
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      ファイル一覧 ({loaderData.userFiles.length})
+                    </h3>
+                  </div>
+
+                  {loaderData.userFiles.length === 0 ? (
+                    <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+                      アップロードされたファイルはありません
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-gray-50 dark:bg-gray-900">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                              ファイル名
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                              サイズ
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                              AI分析
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                              アップロード日
+                            </th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                              操作
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                          {loaderData.userFiles.map((file) => (
+                            <tr
+                              key={file.id}
+                              className="hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                            >
+                              <td className="px-6 py-4">
+                                <div className="flex items-center">
+                                  <div className="flex-shrink-0 h-10 w-10 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700">
+                                    <svg
+                                      className="h-6 w-6 text-gray-500 dark:text-gray-400"
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      stroke="currentColor"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                      />
+                                    </svg>
+                                  </div>
+                                  <div className="ml-4">
+                                    <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                      {file.title || file.originalFilename}
+                                    </div>
+                                    {file.description && (
+                                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-1">
+                                        {file.description}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                {(file.fileSize / 1024).toFixed(1)} KB
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span
+                                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                    file.aiAnalysisStatus === "completed"
+                                      ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                      : file.aiAnalysisStatus === "pending"
+                                        ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                                        : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                                  }`}
+                                >
+                                  {file.aiAnalysisStatus === "completed"
+                                    ? "完了"
+                                    : file.aiAnalysisStatus === "pending"
+                                      ? "処理中"
+                                      : "失敗"}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                {new Date(file.createdAt).toLocaleDateString(
+                                  "ja-JP"
+                                )}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                                <a
+                                  href={`/api/files/download/${file.id}`}
+                                  className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                                >
+                                  ダウンロード
+                                </a>
+                                <fileDeleteFetcher.Form
+                                  method="post"
+                                  action={`/api/files/delete/${file.id}`}
+                                  className="inline"
+                                  onSubmit={(e) => {
+                                    if (
+                                      !confirm(
+                                        "このファイルを削除してもよろしいですか？"
+                                      )
+                                    ) {
+                                      e.preventDefault();
+                                    }
+                                  }}
+                                >
+                                  <button
+                                    type="submit"
+                                    disabled={fileDeleteFetcher.state === "submitting"}
+                                    className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    {fileDeleteFetcher.state === "submitting"
+                                      ? "削除中..."
+                                      : "削除"}
+                                  </button>
+                                </fileDeleteFetcher.Form>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </main>
         </div>
       </div>
-
-      {/* 編集モーダル */}
-      {editingBookmark && (
-        <div
-          className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50"
-          onClick={() => setEditingBookmark(null)}
-        >
-          <div
-            className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-white/20 dark:border-white/10"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-6 sm:p-8">
-              <div className="flex items-center justify-between mb-8">
-                <h2 className="text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight">
-                  Edit Bookmark
-                </h2>
-                <button
-                  onClick={() => setEditingBookmark(null)}
-                  className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-6 w-6"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                </button>
-              </div>
-
-              <Form method="post" onSubmit={() => setEditingBookmark(null)}>
-                <input type="hidden" name="intent" value="edit" />
-                <input
-                  type="hidden"
-                  name="bookmarkId"
-                  value={editingBookmark.id}
-                />
-
-                <div className="space-y-6">
-                  <div>
-                    <label
-                      htmlFor="edit-title"
-                      className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 ml-1"
-                    >
-                      Title
-                    </label>
-                    <input
-                      id="edit-title"
-                      name="title"
-                      type="text"
-                      defaultValue={editingBookmark.title}
-                      required
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    />
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="edit-description"
-                      className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 ml-1"
-                    >
-                      Description
-                    </label>
-                    <textarea
-                      id="edit-description"
-                      name="description"
-                      rows={4}
-                      defaultValue={editingBookmark.description}
-                      required
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label
-                        htmlFor="edit-major-category"
-                        className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 ml-1"
-                      >
-                        Category
-                      </label>
-                      <select
-                        id="edit-major-category"
-                        name="majorCategory"
-                        value={editingBookmark.majorCategory}
-                        onChange={(e) =>
-                          setEditingBookmark({
-                            ...editingBookmark,
-                            majorCategory: e.target.value,
-                          })
-                        }
-                        required
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none cursor-pointer"
-                      >
-                        <option value="">選択してください</option>
-                        {loaderData.allCategories
-                          ?.filter((c) => c.type === "major")
-                          .map((c) => (
-                            <option key={c.id} value={c.name}>
-                              {c.name}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor="edit-minor-category"
-                        className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 ml-1"
-                      >
-                        Subcategory
-                      </label>
-                      <select
-                        id="edit-minor-category"
-                        name="minorCategory"
-                        value={editingBookmark.minorCategory}
-                        onChange={(e) =>
-                          setEditingBookmark({
-                            ...editingBookmark,
-                            minorCategory: e.target.value,
-                          })
-                        }
-                        required
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none cursor-pointer"
-                      >
-                        <option value="">選択してください</option>
-                        {loaderData.allCategories
-                          ?.filter((c) => c.type === "minor")
-                          .map((c) => (
-                            <option key={c.id} value={c.name}>
-                              {c.name}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end gap-3 pt-6">
-                    <button
-                      type="button"
-                      onClick={() => setEditingBookmark(null)}
-                      className="px-6 py-2.5 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 font-medium transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-6 py-2.5 rounded-xl text-white bg-[#0071e3] hover:bg-[#0077ED] font-medium transition-colors shadow-sm"
-                    >
-                      Save Changes
-                    </button>
-                  </div>
-                </div>
-              </Form>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* フッター */}
       <Footer />

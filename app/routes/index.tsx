@@ -145,6 +145,38 @@ export default function Index() {
           </div>
         </div>
 
+        {/* 追加機能 */}
+        <div className="bg-white rounded-lg p-8 shadow-md mb-20">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="text-3xl">📁</div>
+            <h3 className="text-2xl font-bold text-gray-900">ファイル管理</h3>
+            <span className="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
+              Beta
+            </span>
+          </div>
+          <p className="text-gray-600 mb-4">
+            テキストファイルやPDFをアップロードして、AIによる自動分析が可能です。ドキュメント管理もブックマークと同じように簡単に。
+          </p>
+          <div className="grid md:grid-cols-2 gap-4 text-sm">
+            <div className="flex items-start gap-2">
+              <span className="text-green-500">✓</span>
+              <span className="text-gray-600">テキストファイル・PDF対応</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-green-500">✓</span>
+              <span className="text-gray-600">AI自動カテゴリ分析</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-green-500">✓</span>
+              <span className="text-gray-600">最大10MBまで対応</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-green-500">✓</span>
+              <span className="text-gray-600">R2による安全な保管</span>
+            </div>
+          </div>
+        </div>
+
         {/* 使い方 */}
         <div className="bg-white rounded-lg p-12 shadow-md mb-20">
           <h3 className="text-3xl font-bold text-gray-900 mb-8 text-center">

@@ -13,6 +13,7 @@ export const users = sqliteTable("user", {
   emailVerified: integer("email_verified", { mode: "boolean" })
     .notNull()
     .default(false),
+  image: text("image"), // プロフィール画像URL（オプショナル）
   role: text("role", { enum: ["admin", "user"] })
     .notNull()
     .default("user"), // デフォルトはuser、adminは手動設定
@@ -76,7 +77,8 @@ export const verifications = sqliteTable("verification", {
 
 // レート制限テーブル（Better Auth用 - ブルートフォース攻撃対策）
 export const rateLimits = sqliteTable("rate_limit", {
-  key: text("key").primaryKey(),
+  id: text("id").primaryKey(),
+  key: text("key").notNull().unique(),
   count: integer("count").notNull(),
   lastRequest: integer("last_request", { mode: "timestamp" }).notNull(),
 });

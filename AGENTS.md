@@ -238,6 +238,17 @@ if (title.length > AI_CONFIG.TITLE_MAX_LENGTH) {
 ### 認証とアクセス制御
 
 - Better Authによる認証: GoogleとGitHubのOAuth 2.0（パスワード認証は非対応）
+- OAuth 2.0とOIDCの関係:
+  - OAuth 2.0: 認可（Authorization）フレームワーク
+  - OIDC: OAuth 2.0ベースの認証（Authentication）プロトコル
+  - Google: OAuth 2.0ベースのOIDC実装（`openid`スコープでOIDC有効化）
+  - GitHub: OAuth 2.0のみサポート
+- OIDCセキュリティ機能（Better Authが自動実装）:
+  - PKCE (RFC 7636): Authorization Code Intercept攻撃対策
+  - State検証: CSRF対策
+  - Nonce生成と検証: リプレイアタック対策
+  - ID Token検証: JWT署名、issuer、audience、有効期限を検証
+  - Prompt設定: `select_account`（アカウント選択を明示的に促す）
 - セッション管理: サーバーサイドセッション（7日間有効、1日ごとに更新）
 - CSRF保護: Origin検証、state/PKCE検証、SameSite=Lax
 - ユーザー分離: すべてのクエリに`WHERE user_id = ?`フィルタを必須
@@ -701,6 +712,7 @@ npx wrangler types
 
 ## 更新履歴
 
+- 2026-01-04: OAuth 2.0/OIDC実装の正確な理解と実装（GoogleはOAuth 2.0ベースのOIDC、promptパラメータ、自動セキュリティ機能）
 - 2026-01-04: アカウント管理機能を追加（設定ページ、連携解除、削除）、passwordフィールド削除、マイグレーション完全リセット、React Router 7パターン追加
 - 2026-01-04: Better Auth認証機能を追加、ユーザー分離を実装、新機能追加（starred、read_status、archived）
 - 2026-01-04: PrettierとESLintの設定を追加、VS Code拡張機能推奨、フォーマット・Lintルールを業界標準に設定

@@ -66,8 +66,17 @@ export function createAuth(context: AppLoadContext) {
       google: {
         clientId: context.cloudflare.env.GOOGLE_CLIENT_ID,
         clientSecret: context.cloudflare.env.GOOGLE_CLIENT_SECRET,
-        // スコープ: プロフィール情報とメールアドレス
+        // OAuth 2.0ベースのOpenID Connect (OIDC)実装
+        // - `openid`スコープでOIDCプロトコルを有効化
+        // - OAuth 2.0は認可（Authorization）、OIDCは認証（Authentication）
         scope: ["openid", "email", "profile"],
+        // アカウント選択を明示的に促す
+        prompt: "select_account",
+        // Better Authが自動実装するOIDCセキュリティ機能:
+        // - PKCE (RFC 7636): Authorization Code Intercept攻撃対策
+        // - State検証: CSRF（Cross-Site Request Forgery）対策
+        // - Nonce生成と検証: リプレイアタック対策
+        // - ID Token検証: JWT署名、issuer、audience、有効期限を検証
       },
       github: {
         clientId: context.cloudflare.env.GITHUB_CLIENT_ID,
@@ -252,6 +261,37 @@ export async function requireAdmin(request: Request, context: AppLoadContext) {
   }
 
   return session;
+}
+
+/**
+ * ユーザーのID Tokenを取得
+ *
+ * @param userId - ユーザーID
+ * @param context - AppLoadContext
+ * @returns ID Token（存在しない場合はnull）
+ *
+ * OIDC RP-Initiated Logoutで使用します。
+ * Better AuthはGoogleプロバイダーから取得したID Tokenを
+ * accountsテーブルに自動保存します。
+ */
+export async function getIdToken(
+  userId: string,
+  context: AppLoadContext
+): Promise<string | null> {
+  const db = drizzle(context.cloudflare.env.DB);
+
+  try {
+    const accounts = await db
+      .select({ idToken: schema.accounts.idToken })
+      .from(schema.accounts)
+      .where(eq(schema.accounts.userId, userId))
+      .limit(1);
+
+    return accounts[0]?.idToken || null;
+  } catch (error) {
+    console.error("ID Token取得エラー:", error);
+    return null;
+  }
 }
 
 /**

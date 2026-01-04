@@ -20,6 +20,7 @@ interface HeaderProps {
 export function Header({ user }: HeaderProps) {
   const handleLogout = async () => {
     try {
+      // Better Authのセッション終了
       const response = await fetch("/api/auth/sign-out", {
         method: "POST",
         headers: {
@@ -29,6 +30,7 @@ export function Header({ user }: HeaderProps) {
       });
 
       if (response.ok) {
+        // ログアウト完了後、トップページにリダイレクト
         window.location.href =
           "/?message=" +
           encodeURIComponent("ログアウトしました") +

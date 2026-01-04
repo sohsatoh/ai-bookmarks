@@ -11,6 +11,7 @@ export default tseslint.config(
       "dist/**",
       "build/**",
       ".wrangler/**",
+      ".react-router/**",
       "node_modules/**",
       "*.gen.ts",
       "*.d.ts",

@@ -457,6 +457,7 @@ export async function action({ request, context }: Route.ActionArgs) {
       // バックグラウンドで処理
       context.cloudflare.ctx.waitUntil(
         (async () => {
+          // eslint-disable-next-line no-console
           console.log(
             `[Refresh All] Starting batch update for ${allBookmarksFlat.length} bookmarks`
           );
@@ -470,6 +471,7 @@ export async function action({ request, context }: Route.ActionArgs) {
 
           for (const bookmark of allBookmarksFlat) {
             try {
+              // eslint-disable-next-line no-console
               console.log(`[Refresh All] Processing: ${bookmark.url}`);
 
               // ページメタデータを再取得
@@ -515,6 +517,7 @@ export async function action({ request, context }: Route.ActionArgs) {
                 .where(eq(bookmarks.id, bookmark.id));
 
               successCount++;
+              // eslint-disable-next-line no-console
               console.log(`[Refresh All] Success: ${bookmark.url}`);
 
               // レート制限を考慮して少し待機
@@ -525,6 +528,7 @@ export async function action({ request, context }: Route.ActionArgs) {
             }
           }
 
+          // eslint-disable-next-line no-console
           console.log(
             `[Refresh All] Completed: ${successCount} succeeded, ${errorCount} failed`
           );
@@ -821,6 +825,7 @@ export async function action({ request, context }: Route.ActionArgs) {
     context.cloudflare.ctx.waitUntil(
       (async () => {
         try {
+          // eslint-disable-next-line no-console
           console.log("[Background] Starting AI processing for:", url);
 
           // 既存カテゴリ取得
@@ -839,6 +844,7 @@ export async function action({ request, context }: Route.ActionArgs) {
             existingCategories
           );
 
+          // eslint-disable-next-line no-console
           console.log("[Background] AI processing completed, saving to DB");
 
           // カテゴリを取得または作成
@@ -867,6 +873,7 @@ export async function action({ request, context }: Route.ActionArgs) {
             minorCategoryId,
           });
 
+          // eslint-disable-next-line no-console
           console.log("[Background] Bookmark saved successfully");
         } catch (error) {
           console.error("[Background] Failed to process bookmark:", error);
@@ -967,11 +974,12 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
 
       return () => clearInterval(interval);
     }
-  }, [processingCount]);
+  }, [processingCount, revalidator]);
 
   // Broadcast Channelの初期化（タブ間同期）
   useEffect(() => {
     initBroadcastChannel((message: BroadcastMessage) => {
+      // eslint-disable-next-line no-console
       console.log("他のタブからの更新を検知:", message);
 
       // 他のタブで変更があったらデータを再読み込み
@@ -1126,7 +1134,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
         }
       }
     }
-  }, [actionData, isSubmitting]);
+  }, [actionData, isSubmitting, revalidator, loaderData.bookmarksByCategory]);
 
   const handleDismissToast = (id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));

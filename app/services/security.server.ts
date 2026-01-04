@@ -202,7 +202,7 @@ export function validateUrlStrict(urlString: string): {
 /**
  * AI応答の検証とサニタイズ
  */
-export function validateAiResponse(response: any): {
+export function validateAiResponse(response: unknown): {
   valid: boolean;
   error?: string;
 } {

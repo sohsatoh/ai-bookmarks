@@ -113,9 +113,9 @@ Identity providers:
   "routes": [
     {
       "pattern": "ai-bookmarks.example.com",
-      "custom_domain": true
-    }
-  ]
+      "custom_domain": true,
+    },
+  ],
 }
 ```
 
@@ -245,8 +245,8 @@ Identity providers:
    // wrangler.jsonc
    {
      "limits": {
-       "cpu_ms": 10000
-     }
+       "cpu_ms": 10000,
+     },
    }
    ```
 

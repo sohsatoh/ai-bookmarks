@@ -1,5 +1,5 @@
 // 既存カテゴリにアイコンを設定するスクリプト
-import { generateCategoryIcon } from "./app/services/ai.server";
+// import { generateCategoryIcon } from "../app/services/ai.server";
 
 interface Category {
   id: number;
@@ -10,13 +10,20 @@ interface Category {
 
 // Cloudflare Workers環境でこのスクリプトを実行する必要があります
 export default {
-  async fetch(request: Request, env: { AI: Ai; DB: D1Database }): Promise<Response> {
+  async fetch(
+    request: Request,
+    env: { AI: Ai; DB: D1Database }
+  ): Promise<Response> {
     try {
       // 既存のアイコンがないカテゴリを取得
-      const categories = await env.DB.prepare("SELECT id, name, type FROM categories WHERE icon IS NULL").all<Category>();
+      const categories = await env.DB.prepare(
+        "SELECT id, name, type FROM categories WHERE icon IS NULL"
+      ).all<Category>();
 
       if (!categories.results || categories.results.length === 0) {
-        return new Response("すべてのカテゴリにアイコンが設定されています", { status: 200 });
+        return new Response("すべてのカテゴリにアイコンが設定されています", {
+          status: 200,
+        });
       }
 
       console.log(`Processing ${categories.results.length} categories...`);
@@ -25,17 +32,27 @@ export default {
       for (const category of categories.results) {
         console.log(`Generating icon for: ${category.name} (${category.type})`);
 
-        const icon = await generateCategoryIcon(env.AI, category.name, category.type as "major" | "minor");
+        // TODO: generateCategoryIcon関数を実装する必要があります
+        // const icon = await generateCategoryIcon(env.AI, category.name, category.type as "major" | "minor");
+        const icon = `<svg><!-- Placeholder for ${category.name} --></svg>`;
 
-        await env.DB.prepare("UPDATE categories SET icon = ? WHERE id = ?").bind(icon, category.id).run();
+        await env.DB.prepare("UPDATE categories SET icon = ? WHERE id = ?")
+          .bind(icon, category.id)
+          .run();
 
         console.log(`✓ Icon set for: ${category.name}`);
       }
 
-      return new Response(`アイコンを${categories.results.length}個のカテゴリに設定しました`, { status: 200 });
+      return new Response(
+        `アイコンを${categories.results.length}個のカテゴリに設定しました`,
+        { status: 200 }
+      );
     } catch (error) {
       console.error("Error setting category icons:", error);
-      return new Response(`エラー: ${error instanceof Error ? error.message : String(error)}`, { status: 500 });
+      return new Response(
+        `エラー: ${error instanceof Error ? error.message : String(error)}`,
+        { status: 500 }
+      );
     }
   },
 };

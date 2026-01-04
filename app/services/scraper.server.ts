@@ -1,4 +1,8 @@
-import { validateUrlStrict, stripHtmlTags, decodeHtmlEntities } from "./security.server";
+import {
+  validateUrlStrict,
+  stripHtmlTags,
+  decodeHtmlEntities,
+} from "./security.server";
 import { SCRAPER_CONFIG } from "~/constants";
 
 /**
@@ -31,7 +35,10 @@ export async function fetchPageMetadata(url: string): Promise<{
 
     // DoS対策: コンテンツサイズの制限
     const contentLength = response.headers.get("content-length");
-    if (contentLength && Number.parseInt(contentLength) > SCRAPER_CONFIG.MAX_CONTENT_SIZE_BYTES) {
+    if (
+      contentLength &&
+      Number.parseInt(contentLength) > SCRAPER_CONFIG.MAX_CONTENT_SIZE_BYTES
+    ) {
       throw new Error("コンテンツサイズが大きすぎます");
     }
 
@@ -43,7 +50,8 @@ export async function fetchPageMetadata(url: string): Promise<{
     const titleMatch = ogTitleRegex.exec(html) || titleRegex.exec(html);
 
     // メタディスクリプションを抽出
-    const ogDescRegex = /<meta\s+property="og:description"\s+content="([^"]+)"/i;
+    const ogDescRegex =
+      /<meta\s+property="og:description"\s+content="([^"]+)"/i;
     const descRegex = /<meta\s+name="description"\s+content="([^"]+)"/i;
     const descMatch = ogDescRegex.exec(html) || descRegex.exec(html);
 
@@ -76,11 +84,22 @@ export async function fetchPageMetadata(url: string): Promise<{
     const rawDescription = descMatch ? descMatch[1].trim() : "";
 
     // XSS対策: HTMLタグを除去してテキストのみ抽出
-    const title = stripHtmlTags(decodeHtmlEntities(rawTitle)).slice(0, SCRAPER_CONFIG.TITLE_MAX_LENGTH);
-    const description = stripHtmlTags(decodeHtmlEntities(rawDescription)).slice(0, SCRAPER_CONFIG.DESCRIPTION_MAX_LENGTH);
+    const title = stripHtmlTags(decodeHtmlEntities(rawTitle)).slice(
+      0,
+      SCRAPER_CONFIG.TITLE_MAX_LENGTH
+    );
+    const description = stripHtmlTags(decodeHtmlEntities(rawDescription)).slice(
+      0,
+      SCRAPER_CONFIG.DESCRIPTION_MAX_LENGTH
+    );
 
     // コンテンツを結合（AI分析用）
-    const content = bodyContent || [title, description].filter(Boolean).join(" ").slice(0, SCRAPER_CONFIG.CONTENT_MAX_LENGTH);
+    const content =
+      bodyContent ||
+      [title, description]
+        .filter(Boolean)
+        .join(" ")
+        .slice(0, SCRAPER_CONFIG.CONTENT_MAX_LENGTH);
 
     return {
       title: title || "Untitled",
@@ -102,7 +121,10 @@ export async function fetchPageMetadata(url: string): Promise<{
 /**
  * URLの妥当性を検証（後方互換性のため）
  */
-export function validateUrl(urlString: string): { valid: boolean; error?: string } {
+export function validateUrl(urlString: string): {
+  valid: boolean;
+  error?: string;
+} {
   const result = validateUrlStrict(urlString);
   return {
     valid: result.valid,

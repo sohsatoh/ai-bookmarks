@@ -38,7 +38,7 @@ export default async function handleRequest(
 
   // セキュリティヘッダーの設定（強化版）
   responseHeaders.set("Content-Type", "text/html; charset=utf-8");
-  
+
   // CSP: XSS対策を強化
   responseHeaders.set(
     "Content-Security-Policy",
@@ -54,18 +54,21 @@ export default async function handleRequest(
       "upgrade-insecure-requests; " +
       "block-all-mixed-content;"
   );
-  
+
   // その他のセキュリティヘッダー
   responseHeaders.set("X-Content-Type-Options", "nosniff");
   responseHeaders.set("X-Frame-Options", "DENY");
   responseHeaders.set("X-XSS-Protection", "1; mode=block");
   responseHeaders.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  responseHeaders.set("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
-  
+  responseHeaders.set(
+    "Permissions-Policy",
+    "geolocation=(), microphone=(), camera=()"
+  );
+
   // HSTS（本番環境のみ推奨）
   // 注: 本番環境では手動で有効化することを推奨
   // responseHeaders.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
-  
+
   return new Response(body, {
     headers: responseHeaders,
     status: statusCode,

@@ -6,6 +6,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "ai-bookmarks",
   "compatibility_date": "2025-04-04",
+  "compatibility_flags": ["nodejs_compat"],
   "main": "./workers/app.ts",
   "routes": [
     {
@@ -34,6 +35,15 @@
    */
   "ai": {
     "binding": "AI",
+  },
+  /**
+   * Environment Variables
+   * Better Auth用の環境変数（本番環境では`wrangler secret put`で設定）
+   */
+  "vars": {
+    "BETTER_AUTH_URL": "http://localhost:5173",
+    "GOOGLE_CLIENT_ID": "",
+    "GITHUB_CLIENT_ID": "",
   },
   /**
    * Smart Placement

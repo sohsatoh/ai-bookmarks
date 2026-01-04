@@ -22,6 +22,7 @@ export const links: Route.LinksFunction = () => [
     href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap",
   },
   // Favicon
+  { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
   { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },
   { rel: "icon", type: "image/png", sizes: "192x192", href: "/icon-192.png" },
   { rel: "icon", type: "image/png", sizes: "512x512", href: "/icon-512.png" },

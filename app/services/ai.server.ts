@@ -317,27 +317,132 @@ ${sanitizedFileText}`;
       max_tokens: AI_CONFIG.MAX_TOKENS,
     });
 
-    if (
-      !response ||
-      typeof response !== "object" ||
-      !("response" in response)
-    ) {
-      throw new Error("AIからの応答が無効です");
+    console.log("[AI] File analysis raw response type:", typeof response);
+    console.log("[AI] File analysis raw response:", response);
+
+    // AI応答の検証
+    const validation = validateAiResponse(response);
+    if (!validation.valid) {
+      console.error("[AI] File analysis validation failed:", validation.error);
+      console.error("[AI] File analysis response was:", response);
+      throw new Error(validation.error);
     }
 
-    const aiResponse = String(response.response).trim();
-    const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+    // レスポンスからテキストを抽出（新しいoutput形式に対応）
+    let responseText = "";
+    if (typeof response === "string") {
+      responseText = response;
+    } else if (response && typeof response === "object") {
+      // output配列からstatus: "completed"のmessageタイプのオブジェクトを探す
+      const output = (
+        response as {
+          output?: Array<{
+            type?: string;
+            status?: string;
+            content?: Array<{ type?: string; text?: string } | string>;
+          }>;
+        }
+      ).output;
+      if (Array.isArray(output)) {
+        const messageObj = output.find(
+          (item) => item.type === "message" && item.status === "completed"
+        );
+        if (messageObj?.content && Array.isArray(messageObj.content)) {
+          // content配列からtype: "output_text"のアイテムを取得
+          const contentItem = messageObj.content.find(
+            (item) =>
+              (typeof item === "object" &&
+                (item.type === "output_text" || item.type === "text")) ||
+              typeof item === "string"
+          );
+          responseText =
+            typeof contentItem === "string"
+              ? contentItem
+              : (
+                  contentItem as {
+                    text?: string;
+                  }
+                )?.text || "";
+        }
+      }
+      // フォールバック: 旧形式のresponseプロパティ
+      if (!responseText) {
+        responseText = (response as { response?: string }).response || "";
+      }
+    }
+
+    if (!responseText) {
+      console.error("[AI] File analysis could not extract text from response");
+      throw new Error("AI応答からテキストを抽出できませんでした");
+    }
+
+    console.log(
+      "[AI] File analysis extracted text:",
+      responseText.substring(0, 200)
+    );
+
+    // JSONブロックを抽出（```json または { で始まるパターン）
+    const jsonRegex1 = /```json\s*([\s\S]*?)\s*```/;
+    const jsonRegex2 = /(\{[\s\S]*\})/;
+    const jsonMatch =
+      jsonRegex1.exec(responseText) || jsonRegex2.exec(responseText);
 
     if (!jsonMatch) {
-      throw new Error("JSON形式の応答が見つかりませんでした");
+      console.error(
+        "[AI] File analysis could not extract JSON from text:",
+        responseText
+      );
+      throw new Error("AI応答からJSONを抽出できませんでした");
     }
 
-    const metadata = JSON.parse(jsonMatch[0]) as {
+    let metadata: {
       title: string;
       description: string;
       majorCategory: string;
       minorCategory: string;
     };
+    try {
+      metadata = JSON.parse(jsonMatch[1]) as {
+        title: string;
+        description: string;
+        majorCategory: string;
+        minorCategory: string;
+      };
+      console.log("[AI] File analysis parsed metadata:", metadata);
+    } catch (parseError) {
+      console.error("[AI] File analysis JSON parse error:", parseError);
+      console.error("[AI] File analysis failed to parse:", jsonMatch[1]);
+      throw new Error(
+        `JSONパースに失敗しました: ${parseError instanceof Error ? parseError.message : String(parseError)}`
+      );
+    }
+
+    // バリデーションとサニタイズ
+    if (
+      !metadata.title ||
+      !metadata.description ||
+      !metadata.majorCategory ||
+      !metadata.minorCategory
+    ) {
+      console.error("[AI] File analysis missing required fields:", metadata);
+      throw new Error("必須フィールドが不足しています");
+    }
+
+    // XSS対策: 特殊文字をチェック（Reactがエスケープするが、追加の確認）
+    const dangerousChars = /<|>|script|onerror|onclick/i;
+    if (
+      dangerousChars.test(metadata.title) ||
+      dangerousChars.test(metadata.description) ||
+      dangerousChars.test(metadata.majorCategory) ||
+      dangerousChars.test(metadata.minorCategory)
+    ) {
+      console.warn(
+        "[AI] File analysis potential XSS attempt detected in AI response"
+      );
+      throw new Error("不正な応答が検出されました");
+    }
+
+    console.log("[AI] File analysis successfully generated metadata");
 
     // ファイル専用カテゴリIDを取得
     const majorCat = allFileCategories.find(

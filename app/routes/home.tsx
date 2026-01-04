@@ -562,13 +562,16 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                 </button>
                 <button
                   onClick={() => setActiveTab("files")}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors flex items-center gap-2 ${
                     activeTab === "files"
                       ? "border-blue-500 text-blue-600 dark:text-blue-400"
                       : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
                   }`}
                 >
                   ファイル ({loaderData.userFiles.length})
+                  <span className="px-1.5 py-0.5 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                    Beta
+                  </span>
                 </button>
               </nav>
             </div>

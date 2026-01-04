@@ -31,11 +31,45 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 
   // URLパラメータからメッセージを取得
   const url = new URL(request.url);
-  const message = url.searchParams.get("message");
-  const messageType = url.searchParams.get("type") as
-    | "success"
-    | "error"
-    | null;
+  const messageParam = url.searchParams.get("message");
+  const errorParam = url.searchParams.get("error");
+
+  // マージ結果やエラーメッセージを処理
+  let message: string | null = null;
+  let messageType: "success" | "error" | null = null;
+
+  if (messageParam) {
+    messageType = "success";
+    switch (messageParam) {
+      case "merge_success":
+        message = "アカウントを統合しました。再ログインしてください。";
+        break;
+      case "already_linked":
+        message = "既に連携されているアカウントです。";
+        break;
+      default:
+        message = messageParam;
+    }
+  } else if (errorParam) {
+    messageType = "error";
+    switch (errorParam) {
+      case "merge_token_invalid":
+        message = "マージトークンが無効または期限切れです。もう一度お試しください。";
+        break;
+      case "merge_session_invalid":
+        message = "セッションが無効です。再度ログインしてください。";
+        break;
+      case "merge_failed":
+        message = "アカウントの統合に失敗しました。";
+        break;
+      default:
+        message = errorParam;
+    }
+  } else {
+    const typeParam = url.searchParams.get("type") as "success" | "error" | null;
+    message = url.searchParams.get("message");
+    messageType = typeParam;
+  }
 
   return data({
     user: {
@@ -44,7 +78,6 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     accounts: userAccounts.map((acc) => ({
       id: acc.id,
       providerId: acc.providerId,
-      accountId: acc.accountId,
       createdAt: acc.createdAt,
     })),
     message: message || null,
@@ -178,7 +211,9 @@ export default function Settings() {
                         account.providerId}
                     </div>
                     <div className="text-sm text-gray-600">
-                      ID: {account.accountId}
+                      {account.createdAt
+                        ? `連携日: ${new Date(account.createdAt).toLocaleDateString("ja-JP")}`
+                        : "連携済み"}
                     </div>
                   </div>
                 </div>
@@ -238,6 +273,39 @@ export default function Settings() {
           </div>
         </div>
       )}
+
+      {/* アカウントマージ */}
+      <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-6 mb-6">
+        <h2 className="text-xl font-semibold text-yellow-900 mb-4">
+          別のアカウントを統合
+        </h2>
+        <p className="text-yellow-800 mb-4">
+          別のアカウントでログインしてブックマークを現在のアカウントに統合できます。
+          統合元のアカウントは削除されます。
+        </p>
+        <div className="space-y-3">
+          {["google", "github"].map((provider) => (
+            <a
+              key={provider}
+              href={`/api/account/merge/start?provider=${provider}`}
+              className="w-full flex items-center gap-3 p-4 border border-yellow-300 rounded-lg hover:bg-yellow-100 transition-colors text-left"
+            >
+              <span className="text-2xl">
+                {PROVIDER_ICONS[provider] || "🔗"}
+              </span>
+              <div>
+                <div className="font-medium text-yellow-900">
+                  {PROVIDER_LABELS[provider] || provider}でログインして統合
+                </div>
+                <div className="text-sm text-yellow-700">
+                  別の{PROVIDER_LABELS[provider] || provider}
+                  アカウントのデータを統合します
+                </div>
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
 
       {/* アカウント削除 */}
       <div className="bg-red-50 border-2 border-red-200 rounded-lg p-6">

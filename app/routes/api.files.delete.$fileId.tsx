@@ -39,6 +39,12 @@ export async function action({ request, params, context }: Route.ActionArgs) {
       return data(
         {
           error: "レート制限を超過しました。しばらくしてから再試行してください",
+          toast: {
+            type: "error",
+            title: "エラー",
+            message:
+              "レート制限を超過しました。しばらくしてから再試行してください",
+          },
         },
         { status: 429 }
       );
@@ -51,6 +57,12 @@ export async function action({ request, params, context }: Route.ActionArgs) {
       return data(
         {
           error: "レート制限を超過しました。しばらくしてから再試行してください",
+          toast: {
+            type: "error",
+            title: "エラー",
+            message:
+              "レート制限を超過しました。しばらくしてから再試行してください",
+          },
         },
         { status: 429 }
       );
@@ -59,8 +71,18 @@ export async function action({ request, params, context }: Route.ActionArgs) {
     // ファイルIDを取得
     const fileId = Number(params.fileId);
 
-    if (isNaN(fileId)) {
-      return data({ error: "無効なファイルIDです" }, { status: 400 });
+    if (Number.isNaN(fileId)) {
+      return data(
+        {
+          error: "無効なファイルIDです",
+          toast: {
+            type: "error",
+            title: "エラー",
+            message: "無効なファイルIDです",
+          },
+        },
+        { status: 400 }
+      );
     }
 
     // ファイルを削除
@@ -68,14 +90,41 @@ export async function action({ request, params, context }: Route.ActionArgs) {
 
     if (!result.success) {
       return data(
-        { error: result.error || "削除に失敗しました" },
+        {
+          error: result.error || "削除に失敗しました",
+          toast: {
+            type: "error",
+            title: "エラー",
+            message: result.error || "削除に失敗しました",
+          },
+        },
         { status: 400 }
       );
     }
 
-    return data({ success: true }, { status: 200 });
+    return data(
+      {
+        success: true,
+        toast: {
+          type: "success",
+          title: "削除完了",
+          message: "ファイルを削除しました",
+        },
+      },
+      { status: 200 }
+    );
   } catch (error) {
     console.error("ファイル削除エラー:", error);
-    return data({ error: "ファイルの削除に失敗しました" }, { status: 500 });
+    return data(
+      {
+        error: "ファイルの削除に失敗しました",
+        toast: {
+          type: "error",
+          title: "エラー",
+          message: "ファイルの削除に失敗しました",
+        },
+      },
+      { status: 500 }
+    );
   }
 }

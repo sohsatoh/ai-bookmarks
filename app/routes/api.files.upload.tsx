@@ -43,6 +43,12 @@ export async function action({ request, context }: Route.ActionArgs) {
       return data(
         {
           error: "レート制限を超過しました。しばらくしてから再試行してください",
+          toast: {
+            type: "error",
+            title: "エラー",
+            message:
+              "レート制限を超過しました。しばらくしてから再試行してください",
+          },
         },
         { status: 429 }
       );
@@ -55,6 +61,12 @@ export async function action({ request, context }: Route.ActionArgs) {
       return data(
         {
           error: "レート制限を超過しました。しばらくしてから再試行してください",
+          toast: {
+            type: "error",
+            title: "エラー",
+            message:
+              "レート制限を超過しました。しばらくしてから再試行してください",
+          },
         },
         { status: 429 }
       );
@@ -65,7 +77,17 @@ export async function action({ request, context }: Route.ActionArgs) {
     const file = formData.get("file") as File | null;
 
     if (!file) {
-      return data({ error: "ファイルが選択されていません" }, { status: 400 });
+      return data(
+        {
+          error: "ファイルが選択されていません",
+          toast: {
+            type: "error",
+            title: "エラー",
+            message: "ファイルが選択されていません",
+          },
+        },
+        { status: 400 }
+      );
     }
 
     // ファイルをアップロード
@@ -73,16 +95,41 @@ export async function action({ request, context }: Route.ActionArgs) {
 
     if (!result.success) {
       return data(
-        { error: result.error || "アップロードに失敗しました" },
+        {
+          error: result.error || "アップロードに失敗しました",
+          toast: {
+            type: "error",
+            title: "エラー",
+            message: result.error || "アップロードに失敗しました",
+          },
+        },
         { status: 400 }
       );
     }
 
-    return data({ success: true, file: result.file }, { status: 200 });
+    return data(
+      {
+        success: true,
+        file: result.file,
+        toast: {
+          type: "success",
+          title: "アップロード完了",
+          message: "ファイルのアップロードが完了しました",
+        },
+      },
+      { status: 200 }
+    );
   } catch (error) {
     console.error("ファイルアップロードエラー:", error);
     return data(
-      { error: "ファイルのアップロードに失敗しました" },
+      {
+        error: "ファイルのアップロードに失敗しました",
+        toast: {
+          type: "error",
+          title: "エラー",
+          message: "ファイルのアップロードに失敗しました",
+        },
+      },
       { status: 500 }
     );
   }

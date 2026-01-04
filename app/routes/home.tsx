@@ -1,4 +1,10 @@
-import { Form, useNavigation, useRevalidator, redirect } from "react-router";
+import {
+  Form,
+  useNavigation,
+  useRevalidator,
+  redirect,
+  useFetcher,
+} from "react-router";
 import { useEffect, useState, useRef } from "react";
 import type { Route } from "./+types/home";
 import { getDb, getAllBookmarks, getAllCategories } from "~/services/db.server";
@@ -205,6 +211,8 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
   const isSubmitting = navigation.state === "submitting";
   const revalidator = useRevalidator();
   const formRef = useRef<HTMLFormElement>(null);
+  const fileUploadFetcher = useFetcher();
+  const fileDeleteFetcher = useFetcher();
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [editingBookmark, setEditingBookmark] = useState<{
     id: number;
@@ -219,6 +227,8 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
 
   const [processingCount, setProcessingCount] = useState(0);
   const lastActionDataRef = useRef<typeof actionData | null>(null);
+  const lastUploadFetcherDataRef = useRef<typeof fileUploadFetcher.data | null>(null);
+  const lastDeleteFetcherDataRef = useRef<typeof fileDeleteFetcher.data | null>(null);
   const previousBookmarkCountRef = useRef(0);
 
   // 楽観的UI更新用（ローカルで即座に順序を変更）
@@ -446,6 +456,78 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
       }
     }
   }, [actionData, isSubmitting, revalidator, loaderData.bookmarksByCategory]);
+
+  // ファイルアップロードのレスポンス処理
+  useEffect(() => {
+    if (
+      fileUploadFetcher.data &&
+      fileUploadFetcher.state === "idle" &&
+      fileUploadFetcher.data !== lastUploadFetcherDataRef.current
+    ) {
+      lastUploadFetcherDataRef.current = fileUploadFetcher.data;
+
+      const data = fileUploadFetcher.data as {
+        success?: boolean;
+        error?: string;
+        toast?: { type: string; title: string; message: string };
+      };
+
+      if (data.toast?.title && data.toast?.message) {
+        const toastId = Date.now().toString();
+        const toastType = data.toast.type as "success" | "error" | "warning";
+        setToasts((prev) => [
+          ...prev,
+          {
+            id: toastId,
+            type: toastType,
+            title: data.toast!.title,
+            message: data.toast!.message,
+          },
+        ]);
+      }
+
+      if (data.success) {
+        // ファイル一覧を再読み込み
+        revalidator.revalidate();
+      }
+    }
+  }, [fileUploadFetcher.data, fileUploadFetcher.state, revalidator]);
+
+  // ファイル削除のレスポンス処理
+  useEffect(() => {
+    if (
+      fileDeleteFetcher.data &&
+      fileDeleteFetcher.state === "idle" &&
+      fileDeleteFetcher.data !== lastDeleteFetcherDataRef.current
+    ) {
+      lastDeleteFetcherDataRef.current = fileDeleteFetcher.data;
+
+      const data = fileDeleteFetcher.data as {
+        success?: boolean;
+        error?: string;
+        toast?: { type: string; title: string; message: string };
+      };
+
+      if (data.toast?.title && data.toast?.message) {
+        const toastId = Date.now().toString();
+        const toastType = data.toast.type as "success" | "error" | "warning";
+        setToasts((prev) => [
+          ...prev,
+          {
+            id: toastId,
+            type: toastType,
+            title: data.toast!.title,
+            message: data.toast!.message,
+          },
+        ]);
+      }
+
+      if (data.success) {
+        // ファイル一覧を再読み込み
+        revalidator.revalidate();
+      }
+    }
+  }, [fileDeleteFetcher.data, fileDeleteFetcher.state, revalidator]);
 
   const handleDismissToast = (id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -996,7 +1078,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                     ファイルをアップロード
                   </h3>
-                  <Form
+                  <fileUploadFetcher.Form
                     method="post"
                     action="/api/files/upload"
                     encType="multipart/form-data"
@@ -1007,6 +1089,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                         type="file"
                         name="file"
                         required
+                        disabled={fileUploadFetcher.state === "submitting"}
                         className="block w-full text-sm text-gray-900 dark:text-white
                           file:mr-4 file:py-2 file:px-4
                           file:rounded-lg file:border-0
@@ -1014,7 +1097,8 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                           file:bg-blue-50 file:text-blue-700
                           hover:file:bg-blue-100
                           dark:file:bg-blue-900 dark:file:text-blue-300
-                          dark:hover:file:bg-blue-800"
+                          dark:hover:file:bg-blue-800
+                          disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                       <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                         最大5MB、
@@ -1023,11 +1107,14 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                     </div>
                     <button
                       type="submit"
-                      className="px-6 py-2.5 rounded-xl text-white bg-blue-600 hover:bg-blue-700 font-medium transition-colors"
+                      disabled={fileUploadFetcher.state === "submitting"}
+                      className="px-6 py-2.5 rounded-xl text-white bg-blue-600 hover:bg-blue-700 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      アップロード
+                      {fileUploadFetcher.state === "submitting"
+                        ? "アップロード中..."
+                        : "アップロード"}
                     </button>
-                  </Form>
+                  </fileUploadFetcher.Form>
                 </div>
 
                 {/* ファイル一覧 */}
@@ -1131,7 +1218,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                                 >
                                   ダウンロード
                                 </a>
-                                <Form
+                                <fileDeleteFetcher.Form
                                   method="post"
                                   action={`/api/files/delete/${file.id}`}
                                   className="inline"
@@ -1147,11 +1234,14 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                                 >
                                   <button
                                     type="submit"
-                                    className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                                    disabled={fileDeleteFetcher.state === "submitting"}
+                                    className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
                                   >
-                                    削除
+                                    {fileDeleteFetcher.state === "submitting"
+                                      ? "削除中..."
+                                      : "削除"}
                                   </button>
-                                </Form>
+                                </fileDeleteFetcher.Form>
                               </td>
                             </tr>
                           ))}

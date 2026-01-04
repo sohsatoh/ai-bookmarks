@@ -18,6 +18,26 @@ interface HeaderProps {
 }
 
 export function Header({ user }: HeaderProps) {
+  const handleLogout = async () => {
+    try {
+      const response = await fetch("/api/auth/sign-out", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+
+      if (response.ok) {
+        window.location.href = "/login";
+      } else {
+        console.error("ログアウトに失敗しました");
+      }
+    } catch (error) {
+      console.error("ログアウトエラー:", error);
+    }
+  };
+
   return (
     <header className="bg-white shadow-sm border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -47,14 +67,13 @@ export function Header({ user }: HeaderProps) {
                 設定
               </a>
 
-              <form action="/api/auth/sign-out" method="POST">
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-                >
-                  ログアウト
-                </button>
-              </form>
+              <button
+                onClick={handleLogout}
+                type="button"
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+              >
+                ログアウト
+              </button>
             </div>
           )}
         </div>

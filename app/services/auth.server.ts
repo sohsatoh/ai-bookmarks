@@ -102,6 +102,9 @@ export function createAuth(context: AppLoadContext) {
       useSecureCookies:
         context.cloudflare.env.BETTER_AUTH_URL.startsWith("https://"),
 
+      // エラー時のリダイレクト先（カスタムエラーページ）
+      errorRedirectURL: "/api/auth/error",
+
       // IPトラッキング設定
       ipAddress: {
         // CloudflareのIPヘッダーを使用（信頼できるソース）

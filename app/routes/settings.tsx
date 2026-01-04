@@ -85,7 +85,28 @@ export default function Settings() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <h1 className="text-3xl font-bold mb-8">アカウント設定</h1>
+      <div className="flex items-center gap-4 mb-8">
+        <a
+          href="/"
+          className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+        >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M10 19l-7-7m0 0l7-7m-7 7h18"
+            />
+          </svg>
+          <span>ホームに戻る</span>
+        </a>
+        <h1 className="text-3xl font-bold flex-1">アカウント設定</h1>
+      </div>
 
       {/* ユーザー情報 */}
       <div className="bg-white rounded-lg shadow p-6 mb-6">

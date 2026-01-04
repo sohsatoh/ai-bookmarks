@@ -33,104 +33,148 @@ export default function Privacy() {
           </h1>
 
           <div className="prose prose-gray dark:prose-invert max-w-none space-y-6">
+            <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+              AI Bookmarks（以下「本サービス」といいます。）は、本ウェブサイト上で提供するサービス（以下「本サービス」といいます。）における、ユーザーの個人情報の取扱いについて、以下のとおりプライバシーポリシー（以下「本ポリシー」といいます。）を定めます。
+            </p>
+
             <section>
               <h2 className="text-2xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4">
-                1. はじめに
+                第1条（個人情報）
               </h2>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                AI Bookmarks（以下「本サービス」）は、ユーザーの皆様のプライバシーを尊重し、個人情報の保護に努めています。本プライバシーポリシーは、本サービスにおける個人情報の取り扱いについて説明するものです。
+                「個人情報」とは、個人情報保護法にいう「個人情報」を指すものとし、生存する個人に関する情報であって、当該情報に含まれる氏名、生年月日、住所、電話番号、連絡先その他の記述等により特定の個人を識別できる情報及び容貌、指紋、声紋にかかるデータ、及び健康保険証の保険者番号などの当該情報単体から特定の個人を識別できる情報（個人識別情報）を指します。
               </p>
             </section>
 
             <section>
               <h2 className="text-2xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4">
-                2. 収集する情報
+                第2条（個人情報の収集方法）
+              </h2>
+              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                本サービスは、ユーザーが利用する際に、ブックマークされたURL、タイトル、説明文、カテゴリ情報、IPアドレス、アクセス日時などの情報を収集することがあります。また、ユーザーと提携先などとの間でなされたユーザーの個人情報を含む取引記録や決済に関する情報を、本サービスの提携先（情報提供元、広告主、広告配信先などを含みます。以下「提携先」といいます。）などから収集することがあります。
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4">
+                第3条（個人情報を収集・利用する目的）
               </h2>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-3">
-                本サービスでは、以下の情報を収集する場合があります：
+                本サービスが個人情報を収集・利用する目的は、以下のとおりです。
               </p>
-              <ul className="list-disc list-inside space-y-2 text-gray-700 dark:text-gray-300 pl-4">
-                <li>ブックマークされたURL情報</li>
-                <li>ブックマークのタイトル、説明文</li>
-                <li>カテゴリ情報</li>
-                <li>IPアドレス（レート制限のため）</li>
-                <li>アクセス日時</li>
-              </ul>
+              <ol className="list-decimal list-inside space-y-2 text-gray-700 dark:text-gray-300 pl-4">
+                <li>本サービスの提供・運営のため</li>
+                <li>ユーザーからのお問い合わせに回答するため（本人確認を行うことを含む）</li>
+                <li>ユーザーが利用中のサービスの新機能、更新情報、キャンペーン等及び本サービスが提供する他のサービスの案内のメールを送付するため</li>
+                <li>メンテナンス、重要なお知らせなど必要に応じたご連絡のため</li>
+                <li>利用規約に違反したユーザーや、不正・不当な目的でサービスを利用しようとするユーザーの特定をし、ご利用をお断りするため</li>
+                <li>ユーザーにご自身の登録情報の閲覧や変更、削除、ご利用状況の閲覧を行っていただくため</li>
+                <li>有料サービスにおいて、ユーザーに利用料金を請求するため</li>
+                <li>上記の利用目的に付随する目的</li>
+              </ol>
             </section>
 
             <section>
               <h2 className="text-2xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4">
-                3. 情報の利用目的
+                第4条（利用目的の変更）
+              </h2>
+              <ol className="list-decimal list-inside space-y-2 text-gray-700 dark:text-gray-300 pl-4">
+                <li>本サービスは、利用目的が変更前と関連性を有すると合理的に認められる場合に限り、個人情報の利用目的を変更するものとします。</li>
+                <li>利用目的の変更を行った場合には、変更後の目的について、本サービス所定の方法により、ユーザーに通知し、または本ウェブサイト上に公表するものとします。</li>
+              </ol>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4">
+                第5条（個人情報の第三者提供）
+              </h2>
+              <ol className="list-decimal list-inside space-y-2 text-gray-700 dark:text-gray-300 pl-4">
+                <li>本サービスは、次に掲げる場合を除いて、あらかじめユーザーの同意を得ることなく、第三者に個人情報を提供することはありません。ただし、個人情報保護法その他の法令で認められる場合を除きます。
+                  <ul className="list-disc list-inside space-y-1 text-gray-700 dark:text-gray-300 pl-6 mt-2">
+                    <li>人の生命、身体または財産の保護のために必要がある場合であって、本人の同意を得ることが困難であるとき</li>
+                    <li>公衆衛生の向上または児童の健全な育成の推進のために特に必要がある場合であって、本人の同意を得ることが困難であるとき</li>
+                    <li>国の機関もしくは地方公共団体またはその委託を受けた者が法令の定める事務を遂行することに対して協力する必要がある場合であって、本人の同意を得ることにより当該事務の遂行に支障を及ぼすおそれがあるとき</li>
+                    <li>予め次の事項を告知あるいは公表し、かつ本サービスが個人情報保護委員会に届出をしたとき
+                      <ul className="list-disc list-inside space-y-1 text-gray-700 dark:text-gray-300 pl-6 mt-1">
+                        <li>利用目的に第三者への提供を含むこと</li>
+                        <li>第三者に提供されるデータの項目</li>
+                        <li>第三者への提供の手段または方法</li>
+                        <li>本人の求めに応じて個人情報の第三者への提供を停止すること</li>
+                        <li>本人の求めを受け付ける方法</li>
+                      </ul>
+                    </li>
+                  </ul>
+                </li>
+                <li>前項の定めにかかわらず、次に掲げる場合には、当該情報の提供先は第三者に該当しないものとします。
+                  <ul className="list-disc list-inside space-y-1 text-gray-700 dark:text-gray-300 pl-6 mt-2">
+                    <li>本サービスが利用目的の達成に必要な範囲内において個人情報の取扱いの全部または一部を委託する場合</li>
+                    <li>合併その他の事由による事業の承継に伴って個人情報が提供される場合</li>
+                    <li>個人情報を特定の者との間で共同して利用する場合であって、その旨並びに共同して利用される個人情報の項目、共同して利用する者の範囲、利用する者の利用目的および当該個人情報の管理について責任を有する者の氏名または名称について、あらかじめ本人に通知し、または本人が容易に知り得る状態に置いた場合</li>
+                  </ul>
+                </li>
+              </ol>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4">
+                第6条（個人情報の開示）
+              </h2>
+              <ol className="list-decimal list-inside space-y-2 text-gray-700 dark:text-gray-300 pl-4">
+                <li>本サービスは、本人から個人情報の開示を求められたときは、本人に対し、遅滞なくこれを開示します。ただし、開示することにより次のいずれかに該当する場合は、その全部または一部を開示しないこともあり、開示しない決定をした場合には、その旨を遅滞なく通知します。なお、個人情報の開示に際しては、1件あたり1,000円の手数料を申し受けます。
+                  <ul className="list-disc list-inside space-y-1 text-gray-700 dark:text-gray-300 pl-6 mt-2">
+                    <li>本人または第三者の生命、身体、財産その他の権利利益を害するおそれがある場合</li>
+                    <li>本サービスの業務の適正な実施に著しい支障を及ぼすおそれがある場合</li>
+                    <li>その他法令に違反することとなる場合</li>
+                  </ul>
+                </li>
+                <li>前項の定めにかかわらず、履歴情報および特性情報などの個人情報以外の情報については、原則として開示いたしません。</li>
+              </ol>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4">
+                第7条（個人情報の訂正および削除）
+              </h2>
+              <ol className="list-decimal list-inside space-y-2 text-gray-700 dark:text-gray-300 pl-4">
+                <li>ユーザーは、本サービスの保有する自己の個人情報が誤った情報である場合には、本サービスが定める手続きにより、本サービスに対して個人情報の訂正、追加または削除（以下「訂正等」といいます。）を請求することができます。</li>
+                <li>本サービスは、ユーザーから前項の請求を受けてその請求に応じる必要があると判断した場合には、遅滞なく、当該個人情報の訂正等を行うものとします。</li>
+                <li>本サービスは、前項の規定に基づき訂正等を行った場合、または訂正等を行わない旨の決定をしたときは遅滞なく、これをユーザーに通知します。</li>
+              </ol>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4">
+                第8条（個人情報の利用停止等）
+              </h2>
+              <ol className="list-decimal list-inside space-y-2 text-gray-700 dark:text-gray-300 pl-4">
+                <li>本サービスは、本人から、個人情報が、利用目的の範囲を超えて取り扱われているという理由、または不正の手段により取得されたものであるという理由により、その利用の停止または消去（以下「利用停止等」といいます。）を求められた場合には、遅滞なく必要な調査を行います。</li>
+                <li>前項の調査結果に基づき、その請求に応じる必要があると判断した場合には、遅滞なく、当該個人情報の利用停止等を行います。</li>
+                <li>本サービスは、前項の規定に基づき利用停止等を行った場合、または利用停止等を行わない旨の決定をしたときは、遅滞なく、これをユーザーに通知します。</li>
+                <li>前2項にかかわらず、利用停止等に多額の費用を有する場合その他利用停止等を行うことが困難な場合であって、ユーザーの権利利益を保護するために必要なこれに代わるべき措置をとれる場合は、この代替策を講じるものとします。</li>
+              </ol>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4">
+                第9条（プライバシーポリシーの変更）
+              </h2>
+              <ol className="list-decimal list-inside space-y-2 text-gray-700 dark:text-gray-300 pl-4">
+                <li>本ポリシーの内容は、法令その他本ポリシーに別段の定めのある事項を除いて、ユーザーに通知することなく、変更することができるものとします。</li>
+                <li>本サービスが別途定める場合を除いて、変更後のプライバシーポリシーは、本ウェブサイトに掲載したときから効力を生じるものとします。</li>
+              </ol>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4">
+                第10条（お問い合わせ窓口）
               </h2>
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-3">
-                収集した情報は、以下の目的で利用します：
+                本ポリシーに関するお問い合わせは、下記の窓口までお願いいたします。
               </p>
-              <ul className="list-disc list-inside space-y-2 text-gray-700 dark:text-gray-300 pl-4">
-                <li>本サービスの提供および運営</li>
-                <li>AIによる自動カテゴリ分類機能の提供</li>
-                <li>サービスの改善および品質向上</li>
-                <li>不正利用の防止およびセキュリティ対策</li>
-                <li>問い合わせ対応</li>
-              </ul>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4">
-                4. 情報の管理
-              </h2>
-              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                本サービスは、Cloudflare Workers上で動作しており、収集した情報はCloudflare D1データベースに安全に保管されます。適切なセキュリティ対策を実施し、不正アクセス、紛失、破壊、改ざん、漏洩などから情報を保護します。
-              </p>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4">
-                5. 第三者への提供
-              </h2>
-              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                本サービスは、以下の場合を除き、ユーザーの個人情報を第三者に提供することはありません：
-              </p>
-              <ul className="list-disc list-inside space-y-2 text-gray-700 dark:text-gray-300 pl-4 mt-3">
-                <li>ユーザーの同意がある場合</li>
-                <li>法令に基づく場合</li>
-                <li>人の生命、身体または財産の保護のために必要がある場合</li>
-              </ul>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4">
-                6. AI処理について
-              </h2>
-              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                本サービスでは、Cloudflare Workers AIを使用してブックマークの自動カテゴリ分類を行っています。この処理では、ブックマークのURL、タイトル、説明文がCloudflareのAIモデルに送信されます。Cloudflareは、これらの情報をモデルのトレーニングには使用しません。
-              </p>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4">
-                7. Cookie等の利用
-              </h2>
-              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                本サービスでは、サービスの利便性向上のため、ブラウザのローカルストレージを使用する場合があります。ローカルストレージに保存された情報は、お使いのブラウザから削除することができます。
-              </p>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4">
-                8. プライバシーポリシーの変更
-              </h2>
-              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                本プライバシーポリシーは、法令の変更や本サービスの機能追加等に伴い、予告なく変更されることがあります。変更後のプライバシーポリシーは、本ページに掲載された時点で効力を生じるものとします。
-              </p>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4">
-                9. お問い合わせ
-              </h2>
-              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                本プライバシーポリシーに関するお問い合わせは、GitHubのIssueまたはリポジトリ管理者までご連絡ください。
-              </p>
+              <div className="text-gray-700 dark:text-gray-300 leading-relaxed pl-4">
+                <p>サービス名：AI Bookmarks</p>
+                <p>お問い合わせ方法：GitHubのIssueまたはリポジトリ管理者</p>
+              </div>
             </section>
 
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-12">

@@ -29,7 +29,9 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   const userAccounts = await getUserAccounts(db, session.user.id);
 
   return data({
-    user: session.user,
+    user: {
+      email: session.user.email,
+    },
     accounts: userAccounts.map((acc) => ({
       id: acc.id,
       providerId: acc.providerId,
@@ -108,23 +110,9 @@ export default function Settings() {
         <h2 className="text-xl font-semibold mb-4">ユーザー情報</h2>
         <div className="space-y-2">
           <div>
-            <span className="text-gray-600">名前:</span>{" "}
-            <span className="font-medium">{user.name}</span>
-          </div>
-          <div>
             <span className="text-gray-600">メール:</span>{" "}
             <span className="font-medium">{user.email}</span>
           </div>
-          {user.image && (
-            <div className="flex items-center gap-2">
-              <span className="text-gray-600">画像:</span>
-              <img
-                src={user.image}
-                alt={user.name}
-                className="w-10 h-10 rounded-full"
-              />
-            </div>
-          )}
         </div>
       </div>
 

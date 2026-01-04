@@ -14,10 +14,9 @@ import {
   updateCategoryOrder,
 } from "~/services/db.server";
 import { bookmarks } from "~/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { generateBookmarkMetadata } from "~/services/ai.server";
 import { fetchPageMetadata, validateUrl } from "~/services/scraper.server";
-import { checkRateLimit, getClientIp } from "~/services/rate-limit.server";
 import {
   initBroadcastChannel,
   broadcast,
@@ -89,14 +88,19 @@ export async function action({ request, context }: Route.ActionArgs) {
     return { error: "不正なリクエスト元です" };
   }
 
-  // DoS対策: レート制限チェック
+  // DoS対策: レート制限チェック（一般的な変更操作）
+  const { getClientIp, checkMutationRateLimit } = await import("~/services/rate-limit.server");
   const clientIp = getClientIp(request);
-  const rateLimit = checkRateLimit(clientIp, 10, 60 * 1000); // 1分間に10リクエスト
+  const rateLimit = checkMutationRateLimit(clientIp, session.user.id);
 
   if (!rateLimit.allowed) {
     const resetInSeconds = Math.ceil(rateLimit.resetIn / 1000);
+    const reason =
+      rateLimit.reason === "ip"
+        ? `このIPアドレス（残り${rateLimit.remaining}回）`
+        : `このアカウント（残り${rateLimit.remaining}回）`;
     return {
-      error: `リクエスト制限を超えました。${resetInSeconds}秒後に再試行してください。`,
+      error: `${reason}からのリクエストが多すぎます。${resetInSeconds}秒後に再試行してください。`,
     };
   }
 
@@ -121,13 +125,24 @@ export async function action({ request, context }: Route.ActionArgs) {
     }
 
     try {
-      // スター状態を反転
-      await db
+      // スター状態を反転（userIdフィルタで認可チェック）
+      const result = await db
         .update(bookmarks)
         .set({
           isStarred: currentStarred === "true" ? false : true,
         })
-        .where(eq(bookmarks.id, id));
+        .where(
+          and(
+            eq(bookmarks.id, id),
+            eq(bookmarks.userId, session.user.id)
+          )
+        )
+        .returning();
+
+      if (result.length === 0) {
+        return { error: "ブックマークが見つからないか、権限がありません" };
+      }
+
       return { success: true };
     } catch (error) {
       console.error("Toggle star failed:", error);
@@ -150,12 +165,23 @@ export async function action({ request, context }: Route.ActionArgs) {
     }
 
     try {
-      await db
+      const result = await db
         .update(bookmarks)
         .set({
           readStatus: currentStatus === "read" ? "unread" : "read",
         })
-        .where(eq(bookmarks.id, id));
+        .where(
+          and(
+            eq(bookmarks.id, id),
+            eq(bookmarks.userId, session.user.id)
+          )
+        )
+        .returning();
+
+      if (result.length === 0) {
+        return { error: "ブックマークが見つからないか、権限がありません" };
+      }
+
       return { success: true };
     } catch (error) {
       console.error("Toggle read status failed:", error);
@@ -178,12 +204,23 @@ export async function action({ request, context }: Route.ActionArgs) {
     }
 
     try {
-      await db
+      const result = await db
         .update(bookmarks)
         .set({
           isArchived: currentArchived === "true" ? false : true,
         })
-        .where(eq(bookmarks.id, id));
+        .where(
+          and(
+            eq(bookmarks.id, id),
+            eq(bookmarks.userId, session.user.id)
+          )
+        )
+        .returning();
+
+      if (result.length === 0) {
+        return { error: "ブックマークが見つからないか、権限がありません" };
+      }
+
       return { success: true };
     } catch (error) {
       console.error("Toggle archive failed:", error);
@@ -252,8 +289,8 @@ export async function action({ request, context }: Route.ActionArgs) {
         majorCategoryId
       );
 
-      // ブックマークを更新
-      await db
+      // ブックマークを更新（userIdフィルタで認可チェック）
+      const result = await db
         .update(bookmarks)
         .set({
           title: title.slice(0, 500),
@@ -262,7 +299,17 @@ export async function action({ request, context }: Route.ActionArgs) {
           minorCategoryId,
           updatedAt: new Date(),
         })
-        .where(eq(bookmarks.id, id));
+        .where(
+          and(
+            eq(bookmarks.id, id),
+            eq(bookmarks.userId, session.user.id)
+          )
+        )
+        .returning();
+
+      if (result.length === 0) {
+        return { error: "ブックマークが見つからないか、権限がありません" };
+      }
 
       return {
         success: true,
@@ -516,8 +563,49 @@ export async function action({ request, context }: Route.ActionArgs) {
         };
       }
 
-      const orders: Array<{ id: number; order: number }> =
-        JSON.parse(ordersJson);
+      // JSON.parseの検証（例外処理、型チェック、配列長制限）
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(ordersJson);
+      } catch {
+        return {
+          error: "並び替え情報の形式が不正です",
+          toast: {
+            type: "error" as const,
+            title: "エラー",
+            message: "データ形式が不正です",
+          },
+        };
+      }
+
+      if (!Array.isArray(parsed)) {
+        return { error: "無効なデータ形式です" };
+      }
+
+      if (parsed.length > 1000) {
+        return { error: "並び替え可能なアイテム数を超えています" };
+      }
+
+      // 各要素の検証
+      const orders: Array<{ id: number; order: number }> = [];
+      for (const item of parsed) {
+        if (typeof item !== "object" || item === null) {
+          return { error: "無効なアイテム形式です" };
+        }
+
+        const id = Number((item as { id?: unknown }).id);
+        const order = Number((item as { order?: unknown }).order);
+
+        if (!Number.isInteger(id) || id <= 0) {
+          return { error: "無効なIDが含まれています" };
+        }
+
+        if (!Number.isInteger(order) || order < 0) {
+          return { error: "無効な順序が含まれています" };
+        }
+
+        orders.push({ id, order });
+      }
 
       // 各ブックマークの順序を更新（バージョンチェック付き）
       const results = await Promise.all(
@@ -579,8 +667,49 @@ export async function action({ request, context }: Route.ActionArgs) {
         };
       }
 
-      const orders: Array<{ id: number; order: number }> =
-        JSON.parse(ordersJson);
+      // JSON.parseの検証（例外処理、型チェック、配列長制限）
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(ordersJson);
+      } catch {
+        return {
+          error: "並び替え情報の形式が不正です",
+          toast: {
+            type: "error" as const,
+            title: "エラー",
+            message: "データ形式が不正です",
+          },
+        };
+      }
+
+      if (!Array.isArray(parsed)) {
+        return { error: "無効なデータ形式です" };
+      }
+
+      if (parsed.length > 1000) {
+        return { error: "並び替え可能なアイテム数を超えています" };
+      }
+
+      // 各要素の検証
+      const orders: Array<{ id: number; order: number }> = [];
+      for (const item of parsed) {
+        if (typeof item !== "object" || item === null) {
+          return { error: "無効なアイテム形式です" };
+        }
+
+        const id = Number((item as { id?: unknown }).id);
+        const order = Number((item as { order?: unknown }).order);
+
+        if (!Number.isInteger(id) || id <= 0) {
+          return { error: "無効なIDが含まれています" };
+        }
+
+        if (!Number.isInteger(order) || order < 0) {
+          return { error: "無効な順序が含まれています" };
+        }
+
+        orders.push({ id, order });
+      }
 
       // 各カテゴリの順序を更新（バージョンチェック付き）
       const results = await Promise.all(
@@ -624,6 +753,20 @@ export async function action({ request, context }: Route.ActionArgs) {
 
   // ブックマーク追加処理
   const url = formData.get("url") as string;
+
+  // AI処理を含むため、専用のレート制限チェック
+  const { checkBookmarkAddRateLimit } = await import("~/services/rate-limit.server");
+  const bookmarkAddRateLimit = checkBookmarkAddRateLimit(clientIp, session.user.id);
+  if (!bookmarkAddRateLimit.allowed) {
+    const resetInSeconds = Math.ceil(bookmarkAddRateLimit.resetIn / 1000);
+    const reason =
+      bookmarkAddRateLimit.reason === "ip"
+        ? "このIPアドレスから"
+        : "このアカウントで";
+    return {
+      error: `${reason}のブックマーク追加が多すぎます（AI処理制限）。${resetInSeconds}秒後に再試行してください。`,
+    };
+  }
 
   // 基本的な入力チェック
   if (!url || typeof url !== "string") {

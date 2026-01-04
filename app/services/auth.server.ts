@@ -129,15 +129,15 @@ export function createAuth(context: AppLoadContext) {
     // トラストされたOrigin（セキュリティ強化）
     trustedOrigins: [
       context.cloudflare.env.BETTER_AUTH_URL, // 本番/開発URL
-      "https://*.pages.dev",                   // Cloudflare Pagesプレビュー環境
-      "http://localhost:*",                    // ローカル開発（任意ポート）
+      "https://*.pages.dev", // Cloudflare Pagesプレビュー環境
+      "http://localhost:*", // ローカル開発（任意ポート）
     ],
 
     // Rate Limiting（ブルートフォース攻撃対策）
     rateLimit: {
       enabled: true,
-      window: 60,        // 60秒のウィンドウ
-      max: 10,           // ウィンドウ内で10リクエスト
+      window: 60, // 60秒のウィンドウ
+      max: 10, // ウィンドウ内で10リクエスト
       storage: "database", // D1に保存
     },
 

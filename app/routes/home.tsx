@@ -1148,9 +1148,9 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                     
                     return (
                     <div key={bookmark.id} className="relative">
-                      {/* 挿入位置インジケーター（前） - カード間の境界に表示 */}
+                      {/* 挿入位置インジケーター（前） - カード間の左側に表示 */}
                       {showBeforeLine && (
-                        <div className="absolute -top-2.5 left-0 right-0 h-0.5 bg-blue-500 dark:bg-blue-400 z-20 shadow-lg" />
+                        <div className="absolute -left-2 top-0 bottom-0 w-1 bg-blue-500 dark:bg-blue-400 z-20 shadow-lg rounded-full" />
                       )}
                       
                     <div
@@ -1336,9 +1336,9 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                       </div>
                     </div>
                     
-                      {/* 挿入位置インジケーター（後） - カード間の境界に表示 */}
+                      {/* 挿入位置インジケーター（後） - カード間の右側に表示 */}
                       {showAfterLine && (
-                        <div className="absolute -bottom-2.5 left-0 right-0 h-0.5 bg-blue-500 dark:bg-blue-400 z-20 shadow-lg" />
+                        <div className="absolute -right-2 top-0 bottom-0 w-1 bg-blue-500 dark:bg-blue-400 z-20 shadow-lg rounded-full" />
                       )}
                     </div>
                     );
@@ -1395,9 +1395,9 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                         
                         return (
                         <div key={bookmark.id} className="relative">
-                          {/* 挿入位置インジケーター（前） - カード間の境界に表示 */}
+                          {/* 挿入位置インジケーター（前） - カード間の左側に表示 */}
                           {showBeforeLine && (
-                            <div className="absolute -top-2.5 left-0 right-0 h-0.5 bg-blue-500 dark:bg-blue-400 z-20 shadow-lg" />
+                            <div className="absolute -left-2 top-0 bottom-0 w-1 bg-blue-500 dark:bg-blue-400 z-20 shadow-lg rounded-full" />
                           )}
                           
                         <div
@@ -1604,9 +1604,9 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                           </div>
                         </div>
                         
-                          {/* 挿入位置インジケーター（後） - カード間の境界に表示 */}
+                          {/* 挿入位置インジケーター（後） - カード間の右側に表示 */}
                           {showAfterLine && (
-                            <div className="absolute -bottom-2.5 left-0 right-0 h-0.5 bg-blue-500 dark:bg-blue-400 z-20 shadow-lg" />
+                            <div className="absolute -right-2 top-0 bottom-0 w-1 bg-blue-500 dark:bg-blue-400 z-20 shadow-lg rounded-full" />
                           )}
                         </div>
                         );

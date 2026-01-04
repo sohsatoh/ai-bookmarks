@@ -1,4 +1,5 @@
 import { SECURITY_CONFIG } from "~/constants";
+import sanitizeHtml from "sanitize-html";
 
 /**
  * セキュリティユーティリティ関数
@@ -8,21 +9,20 @@ import { SECURITY_CONFIG } from "~/constants";
 /**
  * XSS対策: HTMLタグを除去してプレーンテキスト化
  * サーバー側でのスクレイピング時に使用
+ *
+ * sanitize-htmlライブラリを使用した安全な実装:
+ * - すべてのHTMLタグを削除
+ * - すべての属性を削除
+ * - 危険なタグを再帰的にエスケープ
  */
 export function stripHtmlTags(html: string): string {
   if (!html) return "";
 
-  return (
-    html
-      // script, styleタグとその内容を削除
-      .replaceAll(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-      .replaceAll(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
-      // その他のHTMLタグを削除
-      .replaceAll(/<[^>]+>/g, " ")
-      // 複数の空白を1つに
-      .replaceAll(/\s+/g, " ")
-      .trim()
-  );
+  return sanitizeHtml(html, {
+    allowedTags: [], // すべてのタグを削除
+    allowedAttributes: {}, // すべての属性を削除
+    disallowedTagsMode: "recursiveEscape", // 危険なタグを再帰的にエスケープ
+  });
 }
 
 /**
@@ -63,6 +63,7 @@ export function sanitizeForPrompt(
   return (
     input
       // 制御文字を除去（改行とタブ以外）
+      // eslint-disable-next-line no-control-regex
       .replaceAll(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, "")
       // 連続する改行を1つに
       .replaceAll(/\n{3,}/g, "\n\n")

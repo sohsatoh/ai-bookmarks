@@ -1,4 +1,10 @@
-import { Form, useNavigation, useRevalidator, useSubmit, redirect } from "react-router";
+import {
+  Form,
+  useNavigation,
+  useRevalidator,
+  useSubmit,
+  redirect,
+} from "react-router";
 import { useEffect, useState, useRef } from "react";
 import type { Route } from "./+types/home";
 import {
@@ -89,7 +95,8 @@ export async function action({ request, context }: Route.ActionArgs) {
   }
 
   // DoS対策: レート制限チェック（一般的な変更操作）
-  const { getClientIp, checkMutationRateLimit } = await import("~/services/rate-limit.server");
+  const { getClientIp, checkMutationRateLimit } =
+    await import("~/services/rate-limit.server");
   const clientIp = getClientIp(request);
   const rateLimit = checkMutationRateLimit(clientIp, session.user.id);
 
@@ -121,7 +128,7 @@ export async function action({ request, context }: Route.ActionArgs) {
 
     const id = Number(bookmarkId);
     if (isNaN(id) || id <= 0) {
-      return { error: "無効なIDです" };
+      return { error: "無効なリクエストです" };
     }
 
     try {
@@ -131,22 +138,22 @@ export async function action({ request, context }: Route.ActionArgs) {
         .set({
           isStarred: currentStarred === "true" ? false : true,
         })
-        .where(
-          and(
-            eq(bookmarks.id, id),
-            eq(bookmarks.userId, session.user.id)
-          )
-        )
+        .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, session.user.id)))
         .returning();
 
       if (result.length === 0) {
-        return { error: "ブックマークが見つからないか、権限がありません" };
+        console.error(
+          "Bookmark not found or unauthorized:",
+          id,
+          session.user.id
+        );
+        return { error: "処理に失敗しました" };
       }
 
       return { success: true };
     } catch (error) {
       console.error("Toggle star failed:", error);
-      return { error: "スターの更新に失敗しました" };
+      return { error: "処理に失敗しました" };
     }
   }
 
@@ -161,7 +168,7 @@ export async function action({ request, context }: Route.ActionArgs) {
 
     const id = Number(bookmarkId);
     if (isNaN(id) || id <= 0) {
-      return { error: "無効なIDです" };
+      return { error: "無効なリクエストです" };
     }
 
     try {
@@ -170,22 +177,22 @@ export async function action({ request, context }: Route.ActionArgs) {
         .set({
           readStatus: currentStatus === "read" ? "unread" : "read",
         })
-        .where(
-          and(
-            eq(bookmarks.id, id),
-            eq(bookmarks.userId, session.user.id)
-          )
-        )
+        .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, session.user.id)))
         .returning();
 
       if (result.length === 0) {
-        return { error: "ブックマークが見つからないか、権限がありません" };
+        console.error(
+          "Bookmark not found or unauthorized:",
+          id,
+          session.user.id
+        );
+        return { error: "処理に失敗しました" };
       }
 
       return { success: true };
     } catch (error) {
       console.error("Toggle read status failed:", error);
-      return { error: "ステータスの更新に失敗しました" };
+      return { error: "処理に失敗しました" };
     }
   }
 
@@ -200,7 +207,7 @@ export async function action({ request, context }: Route.ActionArgs) {
 
     const id = Number(bookmarkId);
     if (isNaN(id) || id <= 0) {
-      return { error: "無効なIDです" };
+      return { error: "無効なリクエストです" };
     }
 
     try {
@@ -209,22 +216,22 @@ export async function action({ request, context }: Route.ActionArgs) {
         .set({
           isArchived: currentArchived === "true" ? false : true,
         })
-        .where(
-          and(
-            eq(bookmarks.id, id),
-            eq(bookmarks.userId, session.user.id)
-          )
-        )
+        .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, session.user.id)))
         .returning();
 
       if (result.length === 0) {
-        return { error: "ブックマークが見つからないか、権限がありません" };
+        console.error(
+          "Bookmark not found or unauthorized:",
+          id,
+          session.user.id
+        );
+        return { error: "処理に失敗しました" };
       }
 
       return { success: true };
     } catch (error) {
       console.error("Toggle archive failed:", error);
-      return { error: "アーカイブの更新に失敗しました" };
+      return { error: "処理に失敗しました" };
     }
   }
 
@@ -239,7 +246,7 @@ export async function action({ request, context }: Route.ActionArgs) {
 
     const id = Number(bookmarkId);
     if (isNaN(id) || id <= 0) {
-      return { error: "無効なIDです" };
+      return { error: "無効なリクエストです" };
     }
 
     try {
@@ -247,7 +254,7 @@ export async function action({ request, context }: Route.ActionArgs) {
       return { success: true };
     } catch (error) {
       console.error("Delete failed:", error);
-      return { error: "削除に失敗しました" };
+      return { error: "処理に失敗しました" };
     }
   }
 
@@ -266,7 +273,7 @@ export async function action({ request, context }: Route.ActionArgs) {
 
     const id = Number(bookmarkId);
     if (isNaN(id) || id <= 0) {
-      return { error: "無効なIDです" };
+      return { error: "無効なリクエストです" };
     }
 
     if (!title || !description || !majorCategory || !minorCategory) {
@@ -299,16 +306,16 @@ export async function action({ request, context }: Route.ActionArgs) {
           minorCategoryId,
           updatedAt: new Date(),
         })
-        .where(
-          and(
-            eq(bookmarks.id, id),
-            eq(bookmarks.userId, session.user.id)
-          )
-        )
+        .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, session.user.id)))
         .returning();
 
       if (result.length === 0) {
-        return { error: "ブックマークが見つからないか、権限がありません" };
+        console.error(
+          "Bookmark not found or unauthorized:",
+          id,
+          session.user.id
+        );
+        return { error: "処理に失敗しました" };
       }
 
       return {
@@ -321,7 +328,7 @@ export async function action({ request, context }: Route.ActionArgs) {
       };
     } catch (error) {
       console.error("Edit failed:", error);
-      return { error: "更新に失敗しました" };
+      return { error: "処理に失敗しました" };
     }
   }
 
@@ -335,7 +342,7 @@ export async function action({ request, context }: Route.ActionArgs) {
 
     const id = Number(bookmarkId);
     if (Number.isNaN(id) || id <= 0) {
-      return { error: "無効なIDです" };
+      return { error: "無効なリクエストです" };
     }
 
     try {
@@ -347,7 +354,8 @@ export async function action({ request, context }: Route.ActionArgs) {
         .limit(1);
 
       if (existingBookmark.length === 0) {
-        return { error: "ブックマークが見つかりません" };
+        console.error("Bookmark not found:", id);
+        return { error: "処理に失敗しました" };
       }
 
       const bookmark = existingBookmark[0];
@@ -358,7 +366,10 @@ export async function action({ request, context }: Route.ActionArgs) {
       );
 
       // 既存カテゴリ取得
-      const existingCategories = await getExistingCategories(db, session.user.id);
+      const existingCategories = await getExistingCategories(
+        db,
+        session.user.id
+      );
 
       // AIでメタデータ生成
       const metadata = await generateBookmarkMetadata(
@@ -408,13 +419,11 @@ export async function action({ request, context }: Route.ActionArgs) {
     } catch (error) {
       console.error("Refresh failed:", error);
       return {
-        error:
-          error instanceof Error ? error.message : "情報の更新に失敗しました",
+        error: "処理に失敗しました",
         toast: {
           type: "error" as const,
           title: "エラー",
-          message:
-            error instanceof Error ? error.message : "情報の更新に失敗しました",
+          message: "処理に失敗しました",
         },
       };
     }
@@ -449,7 +458,10 @@ export async function action({ request, context }: Route.ActionArgs) {
             `[Refresh All] Starting batch update for ${allBookmarksFlat.length} bookmarks`
           );
 
-          const existingCategories = await getExistingCategories(db, session.user.id);
+          const existingCategories = await getExistingCategories(
+            db,
+            session.user.id
+          );
           let successCount = 0;
           let errorCount = 0;
 
@@ -527,17 +539,11 @@ export async function action({ request, context }: Route.ActionArgs) {
     } catch (error) {
       console.error("Refresh all failed:", error);
       return {
-        error:
-          error instanceof Error
-            ? error.message
-            : "一括更新の開始に失敗しました",
+        error: "処理に失敗しました",
         toast: {
           type: "error" as const,
           title: "エラー",
-          message:
-            error instanceof Error
-              ? error.message
-              : "一括更新の開始に失敗しました",
+          message: "処理に失敗しました",
         },
       };
     }
@@ -609,7 +615,9 @@ export async function action({ request, context }: Route.ActionArgs) {
 
       // 各ブックマークの順序を更新（バージョンチェック付き）
       const results = await Promise.all(
-        orders.map(({ id, order }) => updateBookmarkOrder(db, session.user.id, id, order))
+        orders.map(({ id, order }) =>
+          updateBookmarkOrder(db, session.user.id, id, order)
+        )
       );
 
       // 失敗があれば競合エラーを返す
@@ -637,11 +645,11 @@ export async function action({ request, context }: Route.ActionArgs) {
     } catch (error) {
       console.error("Reorder bookmarks failed:", error);
       return {
-        error: "並び替えに失敗しました",
+        error: "処理に失敗しました",
         toast: {
           type: "error" as const,
           title: "エラー",
-          message: "並び替えに失敗しました",
+          message: "処理に失敗しました",
         },
       };
     }
@@ -713,7 +721,9 @@ export async function action({ request, context }: Route.ActionArgs) {
 
       // 各カテゴリの順序を更新（バージョンチェック付き）
       const results = await Promise.all(
-        orders.map(({ id, order }) => updateCategoryOrder(db, session.user.id, id, order))
+        orders.map(({ id, order }) =>
+          updateCategoryOrder(db, session.user.id, id, order)
+        )
       );
 
       // 失敗があれば競合エラーを返す
@@ -741,11 +751,11 @@ export async function action({ request, context }: Route.ActionArgs) {
     } catch (error) {
       console.error("Reorder categories failed:", error);
       return {
-        error: "並び替えに失敗しました",
+        error: "処理に失敗しました",
         toast: {
           type: "error" as const,
           title: "エラー",
-          message: "カテゴリの並び替えに失敗しました",
+          message: "処理に失敗しました",
         },
       };
     }
@@ -755,8 +765,12 @@ export async function action({ request, context }: Route.ActionArgs) {
   const url = formData.get("url") as string;
 
   // AI処理を含むため、専用のレート制限チェック
-  const { checkBookmarkAddRateLimit } = await import("~/services/rate-limit.server");
-  const bookmarkAddRateLimit = checkBookmarkAddRateLimit(clientIp, session.user.id);
+  const { checkBookmarkAddRateLimit } =
+    await import("~/services/rate-limit.server");
+  const bookmarkAddRateLimit = checkBookmarkAddRateLimit(
+    clientIp,
+    session.user.id
+  );
   if (!bookmarkAddRateLimit.allowed) {
     const resetInSeconds = Math.ceil(bookmarkAddRateLimit.resetIn / 1000);
     const reason =
@@ -809,7 +823,10 @@ export async function action({ request, context }: Route.ActionArgs) {
           console.log("[Background] Starting AI processing for:", url);
 
           // 既存カテゴリ取得
-          const existingCategories = await getExistingCategories(db, session.user.id);
+          const existingCategories = await getExistingCategories(
+            db,
+            session.user.id
+          );
 
           // AIでメタデータ生成
           const metadata = await generateBookmarkMetadata(
@@ -1146,8 +1163,8 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
     e: React.DragEvent,
     targetType: "bookmark" | "category",
     targetId: number,
-    targetOrder: number,
-    minorCategoryId?: number
+    _targetOrder: number,
+    _minorCategoryId?: number
   ) => {
     e.preventDefault();
     e.stopPropagation();
@@ -1289,8 +1306,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
           id: toastId,
           type: "error" as const,
           title: "エラー",
-          message:
-            error instanceof Error ? error.message : "並び替えに失敗しました",
+          message: "処理に失敗しました",
         },
       ]);
     } finally {

@@ -13,7 +13,6 @@ import { getSession } from "~/services/auth.server";
 import { redirect } from "react-router";
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
-
   // すでにログインしている場合はホームにリダイレクト
   const session = await getSession(request, context);
   if (session) {

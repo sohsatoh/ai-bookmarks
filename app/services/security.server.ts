@@ -42,7 +42,10 @@ export function decodeHtmlEntities(text: string): string {
     "&nbsp;": " ",
   };
 
-  return text.replaceAll(/&(?:amp|lt|gt|quot|#x27|#x2F|#39|nbsp);/g, (match) => entities[match] || match);
+  return text.replaceAll(
+    /&(?:amp|lt|gt|quot|#x27|#x2F|#39|nbsp);/g,
+    (match) => entities[match] || match
+  );
 }
 
 /**
@@ -51,7 +54,10 @@ export function decodeHtmlEntities(text: string): string {
  * - プロンプトインジェクション用のキーワードをエスケープ
  * - 長さ制限
  */
-export function sanitizeForPrompt(input: string, maxLength: number = SECURITY_CONFIG.DEFAULT_SANITIZED_TEXT_MAX_LENGTH): string {
+export function sanitizeForPrompt(
+  input: string,
+  maxLength: number = SECURITY_CONFIG.DEFAULT_SANITIZED_TEXT_MAX_LENGTH
+): string {
   if (!input) return "";
 
   return (
@@ -67,7 +73,10 @@ export function sanitizeForPrompt(input: string, maxLength: number = SECURITY_CO
       // システムロール侵害パターンを無効化
       .replaceAll(/(?:system|assistant|user):/gi, "$&_")
       // 指示注入パターンを無効化
-      .replaceAll(/(?:ignore|disregard|forget)\s+(?:previous|above|all)/gi, "[removed]")
+      .replaceAll(
+        /(?:ignore|disregard|forget)\s+(?:previous|above|all)/gi,
+        "[removed]"
+      )
       .trim()
       .slice(0, maxLength)
   );
@@ -77,7 +86,12 @@ export function sanitizeForPrompt(input: string, maxLength: number = SECURITY_CO
  * SQLインジェクション対策: 入力値の検証
  * Drizzle ORMはプリペアドステートメントを使用するが、追加のバリデーション
  */
-export function validateTextInput(input: string, fieldName: string, minLength: number = 1, maxLength: number = 500): { valid: boolean; error?: string; sanitized?: string } {
+export function validateTextInput(
+  input: string,
+  fieldName: string,
+  minLength: number = 1,
+  maxLength: number = 500
+): { valid: boolean; error?: string; sanitized?: string } {
   if (!input || typeof input !== "string") {
     return { valid: false, error: `${fieldName}は必須です` };
   }
@@ -99,7 +113,12 @@ export function validateTextInput(input: string, fieldName: string, minLength: n
   }
 
   // SQL特殊文字のチェック（警告のみ、Drizzleが処理する）
-  const dangerousPatterns = [/--/, /;.*(?:DROP|DELETE|UPDATE|INSERT|ALTER|CREATE)/i, /UNION.*SELECT/i, /\/\*.*\*\//];
+  const dangerousPatterns = [
+    /--/,
+    /;.*(?:DROP|DELETE|UPDATE|INSERT|ALTER|CREATE)/i,
+    /UNION.*SELECT/i,
+    /\/\*.*\*\//,
+  ];
 
   for (const pattern of dangerousPatterns) {
     if (pattern.test(trimmed)) {
@@ -118,7 +137,11 @@ export function validateTextInput(input: string, fieldName: string, minLength: n
 /**
  * URL検証の強化版（既存のvalidateUrlに追加）
  */
-export function validateUrlStrict(urlString: string): { valid: boolean; error?: string; sanitizedUrl?: string } {
+export function validateUrlStrict(urlString: string): {
+  valid: boolean;
+  error?: string;
+  sanitizedUrl?: string;
+} {
   try {
     // 基本的な型チェック
     if (!urlString || typeof urlString !== "string") {
@@ -144,7 +167,11 @@ export function validateUrlStrict(urlString: string): { valid: boolean; error?: 
     const url = new URL(trimmed);
 
     // HTTPまたはHTTPSのみ許可
-    if (!SECURITY_CONFIG.ALLOWED_URL_PROTOCOLS.includes(url.protocol as "http:" | "https:")) {
+    if (
+      !SECURITY_CONFIG.ALLOWED_URL_PROTOCOLS.includes(
+        url.protocol as "http:" | "https:"
+      )
+    ) {
       return { valid: false, error: "HTTPまたはHTTPSのURLのみ対応しています" };
     }
 
@@ -158,7 +185,10 @@ export function validateUrlStrict(urlString: string): { valid: boolean; error?: 
 
     for (const pattern of SECURITY_CONFIG.BLOCKED_IP_PATTERNS) {
       if (pattern.test(hostname)) {
-        return { valid: false, error: "プライベートIPアドレスは使用できません" };
+        return {
+          valid: false,
+          error: "プライベートIPアドレスは使用できません",
+        };
       }
     }
 
@@ -207,7 +237,9 @@ export class RateLimiter {
     const requests = this.requests.get(identifier) || [];
 
     // 古いリクエストを削除
-    const validRequests = requests.filter((timestamp) => now - timestamp < this.windowMs);
+    const validRequests = requests.filter(
+      (timestamp) => now - timestamp < this.windowMs
+    );
 
     if (validRequests.length >= this.maxRequests) {
       return { allowed: false, remaining: 0 };

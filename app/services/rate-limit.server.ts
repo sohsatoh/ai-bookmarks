@@ -20,7 +20,11 @@ const rateLimitStore = new Map<string, RateLimitEntry>();
  * @param windowMs 制限時間（ミリ秒）
  * @returns 制限内ならtrue、超過ならfalse
  */
-export function checkRateLimit(identifier: string, maxRequests: number = RATE_LIMIT_CONFIG.DEFAULT_MAX_REQUESTS, windowMs: number = RATE_LIMIT_CONFIG.DEFAULT_WINDOW_MS): { allowed: boolean; remaining: number; resetIn: number } {
+export function checkRateLimit(
+  identifier: string,
+  maxRequests: number = RATE_LIMIT_CONFIG.DEFAULT_MAX_REQUESTS,
+  windowMs: number = RATE_LIMIT_CONFIG.DEFAULT_WINDOW_MS
+): { allowed: boolean; remaining: number; resetIn: number } {
   const now = Date.now();
   const entry = rateLimitStore.get(identifier);
 

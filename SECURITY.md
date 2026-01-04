@@ -225,6 +225,42 @@
 - [Cloudflare Workers Security Best Practices](https://developers.cloudflare.com/workers/platform/best-practices/security/)
 - [Content Security Policy (CSP)](https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP)
 - [Prompt Injection Defense](https://learnprompting.org/docs/prompt_hacking/defensive_measures/introduction)
+- [なぜソーシャルログインの際にemailをキーにして参照するのか](https://zenn.dev/ritou/articles/ca7be3f329e68f) - OAuth認証のベストプラクティス
+
+## 🔐 OAuth認証のセキュリティ
+
+### アカウント紐付けの原則
+
+**実装方針**:
+
+- ✅ OAuth ProviderのユーザーID（`accountId`）で紐付け
+- ❌ メールアドレスでの紐付けは**禁止**
+
+**理由**:
+
+1. メールアドレスは変更可能
+2. メールアドレスのリサイクルにより他人のアカウントにアクセスされるリスク
+3. Pre-hijacking攻撃の可能性
+
+詳細: [SECURITY_ANALYSIS.md](SECURITY_ANALYSIS.md)
+
+### Better Auth設定
+
+```typescript
+account: {
+  accountLinking: {
+    enabled: false, // 自動アカウント統合を無効化
+    trustedProviders: [], // メールアドレスでの統合を行わない
+    allowDifferentEmails: false,
+  },
+}
+```
+
+### アカウント連携フロー
+
+1. **新規OAuth認証**: 常に新規ユーザーとして登録
+2. **既存ユーザーとの統合**: 設定画面から明示的に連携
+3. **メールアドレス**: 参考情報としてのみ使用
 
 ## 🚨 インシデント対応
 
@@ -239,4 +275,5 @@
 
 ## 更新履歴
 
+- 2026-01-04: OAuth認証のセキュリティ対策を追加 - メールアドレス紐付けのリスクと対策を文書化
 - 2026-01-03: 初版作成 - 包括的なセキュリティ対策を実装

@@ -222,12 +222,6 @@ export function getClientIp(request: Request): string {
     return cfConnectingIp;
   }
 
-  // X-Forwarded-Forから取得
-  const xForwardedFor = request.headers.get("X-Forwarded-For");
-  if (xForwardedFor) {
-    return xForwardedFor.split(",")[0].trim();
-  }
-
   // フォールバック
   return "unknown";
 }

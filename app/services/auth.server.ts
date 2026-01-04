@@ -101,8 +101,8 @@ export function createAuth(context: AppLoadContext) {
 
       // IPトラッキング設定
       ipAddress: {
-        // CloudflareのIPヘッダーを使用
-        ipAddressHeaders: ["cf-connecting-ip", "x-forwarded-for"],
+        // CloudflareのIPヘッダーを使用（信頼できるソース）
+        ipAddressHeaders: ["cf-connecting-ip"],
         // IPトラッキングを有効化
         disableIpTracking: false,
       },

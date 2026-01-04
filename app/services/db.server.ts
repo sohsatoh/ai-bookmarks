@@ -52,12 +52,28 @@ export async function getOrCreateCategory(
  */
 export async function getExistingCategories(
   db: ReturnType<typeof getDb>
-): Promise<{ major: string[]; minor: string[] }> {
+): Promise<{
+  major: string[];
+  minor: string[];
+  hierarchy: { major: string; minors: string[] }[];
+}> {
   const allCategories = await db.select().from(categories);
 
+  const majorCategories = allCategories.filter((c) => c.type === "major");
+  const minorCategories = allCategories.filter((c) => c.type === "minor");
+
+  // 親子関係を構築
+  const hierarchy = majorCategories.map((major) => ({
+    major: major.name,
+    minors: minorCategories
+      .filter((minor) => minor.parentId === major.id)
+      .map((minor) => minor.name),
+  }));
+
   return {
-    major: allCategories.filter((c) => c.type === "major").map((c) => c.name),
-    minor: allCategories.filter((c) => c.type === "minor").map((c) => c.name),
+    major: majorCategories.map((c) => c.name),
+    minor: minorCategories.map((c) => c.name),
+    hierarchy,
   };
 }
 

@@ -21,8 +21,10 @@ import type { Route } from "./+types/api.account.merge.callback";
 //   mergeAccountSecure,
 // } from "~/services/account.server";
 
-export async function loader({ request: _request, context: _context }: Route.LoaderArgs) {
+export async function loader({
+  request: _request,
+  context: _context,
+}: Route.LoaderArgs) {
   // セキュリティ上の理由により一時的に無効化
   return redirect("/settings?error=この機能は現在利用できません");
-
 }

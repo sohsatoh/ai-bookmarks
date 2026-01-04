@@ -4,9 +4,10 @@ import { AI_CONFIG } from "~/constants";
 
 /**
  * Workers AIを使用してURLからメタデータを生成
- * - 既存のカテゴリとの類似性を考慮してカテゴリを選択
+ * - 既存のカテゴリとの類似性を考慮してカテゴリを選択（全ユーザー共有）
  * - 短い説明文を生成
  * - Prompt Injection対策済み
+ * - 同じURLの2回目以降はAI呼び出しをスキップして既存データを再利用
  */
 export async function generateBookmarkMetadata(
   ai: Ai,

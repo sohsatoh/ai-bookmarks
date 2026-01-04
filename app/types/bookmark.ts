@@ -1,8 +1,11 @@
 export interface BookmarkWithCategories {
   id: number;
+  userId: string;
   url: string;
   title: string;
   description: string;
+  majorCategoryId: number;
+  minorCategoryId: number;
   majorCategory: {
     id: number;
     name: string;
@@ -16,7 +19,8 @@ export interface BookmarkWithCategories {
   isStarred: boolean;
   readStatus: "unread" | "read";
   isArchived: boolean;
-  userId: string | null;
+  displayOrder: number;
+  version: number;
   createdAt: Date;
   updatedAt: Date;
 }

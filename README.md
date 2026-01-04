@@ -210,6 +210,15 @@ pnpm run deploy
 - アーカイブ: 使わなくなったブックマークを保管
 - 削除: ブックマークを完全に削除
 
+### アカウント管理
+
+ヘッダーの「設定」リンクから以下の操作が可能です:
+
+- 連携アカウントの表示: GoogleとGitHubアカウントの連携状態を確認
+- アカウントの連携: 新しいアカウントを追加で連携（複数アカウント対応）
+- アカウントの連携解除: 不要なアカウントの連携を解除（最後のアカウントは解除不可）
+- アカウントの削除: 全データを完全削除（確認のため「削除する」と入力が必要）
+
 ### その他のページ
 
 - プライバシーポリシー: `/privacy` - データの取り扱いについて
@@ -243,50 +252,68 @@ pnpm run deploy
 
 ### account テーブル（Better Auth - OAuth）
 
-| カラム名      | 型      | 説明                          |
-| ------------- | ------- | ----------------------------- |
-| id            | TEXT    | 主キー                        |
-| user_id       | TEXT    | ユーザーID（外部キー）        |
-| account_id    | TEXT    | プロバイダー側のユーザーID    |
-| provider_id   | TEXT    | プロバイダー（google/github） |
-| access_token  | TEXT    | アクセストークン              |
-| refresh_token | TEXT    | リフレッシュトークン          |
-| expires_at    | INTEGER | トークン有効期限              |
-| created_at    | INTEGER | 作成日時                      |
-| updated_at    | INTEGER | 更新日時                      |
+| カラム名                 | 型      | 説明                          |
+| ------------------------ | ------- | ----------------------------- |
+| id                       | TEXT    | 主キー                        |
+| user_id                  | TEXT    | ユーザーID（外部キー）        |
+| account_id               | TEXT    | プロバイダー側のユーザーID    |
+| provider_id              | TEXT    | プロバイダー（google/github） |
+| access_token             | TEXT    | OAuthアクセストークン         |
+| access_token_expires_at  | INTEGER | アクセストークン有効期限      |
+| refresh_token            | TEXT    | OAuthリフレッシュトークン     |
+| refresh_token_expires_at | INTEGER | リフレッシュトークン有効期限  |
+| id_token                 | TEXT    | OpenID Connect IDトークン     |
+| scope                    | TEXT    | OAuthスコープ                 |
+| expires_at               | INTEGER | トークン有効期限              |
+| created_at               | INTEGER | 作成日時                      |
+| updated_at               | INTEGER | 更新日時                      |
 
-### categories テーブル
+注意: このアプリケーションはOAuth認証のみを使用しており、パスワード認証は実装していません。
 
-| カラム名      | 型      | 説明                                           |
-| ------------- | ------- | ---------------------------------------------- |
-| id            | INTEGER | 主キー（自動採番）                             |
-| user_id       | TEXT    | ユーザーID（外部キー）                         |
-| name          | TEXT    | カテゴリ名                                     |
-| type          | TEXT    | タイプ（major: 大カテゴリ、minor: 小カテゴリ） |
-| parent_id     | INTEGER | 親カテゴリID（小カテゴリの場合のみ）           |
-| icon          | TEXT    | SVGアイコン（AI生成）                          |
-| display_order | INTEGER | 表示順序                                       |
-| version       | INTEGER | 楽観的ロック用バージョン                       |
-| created_at    | INTEGER | 作成日時（UNIXタイムスタンプ）                 |
+### categories テーブル（全ユーザー共有カテゴリマスター）
 
-### bookmarks テーブル
+| カラム名   | 型      | 説明                                           |
+| ---------- | ------- | ---------------------------------------------- |
+| id         | INTEGER | 主キー（自動採番）                             |
+| name       | TEXT    | カテゴリ名（ユニーク制約）                     |
+| type       | TEXT    | タイプ（major: 大カテゴリ、minor: 小カテゴリ） |
+| parent_id  | INTEGER | 親カテゴリID（小カテゴリの場合のみ）           |
+| icon       | TEXT    | SVGアイコン（AI生成）                          |
+| created_at | INTEGER | 作成日時（UNIXタイムスタンプ）                 |
 
-| カラム名          | 型      | 説明                     |
-| ----------------- | ------- | ------------------------ |
-| id                | INTEGER | 主キー（自動採番）       |
-| user_id           | TEXT    | ユーザーID（外部キー）   |
-| url               | TEXT    | ブックマークURL          |
-| title             | TEXT    | ページタイトル           |
-| description       | TEXT    | 説明文                   |
-| major_category_id | INTEGER | 大カテゴリID             |
-| minor_category_id | INTEGER | 小カテゴリID             |
-| is_starred        | BOOLEAN | スターフラグ             |
-| read_status       | TEXT    | 既読状態（unread/read）  |
-| is_archived       | BOOLEAN | アーカイブフラグ         |
-| display_order     | INTEGER | 表示順序                 |
-| version           | INTEGER | 楽観的ロック用バージョン |
-| created_at        | INTEGER | 作成日時                 |
-| updated_at        | INTEGER | 更新日時                 |
+注意: カテゴリは全ユーザー間で共有され、同じURLには同じカテゴリが適用されます。これによりAI生成コストを削減し、カテゴリの一貫性を保ちます。
+
+### urls テーブル（全ユーザー共有URLマスター）
+
+| カラム名          | 型      | 説明                           |
+| ----------------- | ------- | ------------------------------ |
+| id                | INTEGER | 主キー（自動採番）             |
+| url               | TEXT    | URL（ユニーク制約）            |
+| title             | TEXT    | ページタイトル（AI生成）       |
+| description       | TEXT    | 説明文（AI生成）               |
+| major_category_id | INTEGER | 大カテゴリID（外部キー）       |
+| minor_category_id | INTEGER | 小カテゴリID（外部キー）       |
+| created_at        | INTEGER | 作成日時（UNIXタイムスタンプ） |
+| updated_at        | INTEGER | 更新日時                       |
+
+注意: URLとAI生成メタデータ（タイトル、説明、カテゴリ）は全ユーザー間で共有されます。同じURLを複数のユーザーが追加しても、AI処理は初回のみ実行され、以降は既存データを再利用します。
+
+### user_bookmarks テーブル（ユーザー固有のブックマーク設定）
+
+| カラム名      | 型      | 説明                     |
+| ------------- | ------- | ------------------------ |
+| id            | INTEGER | 主キー（自動採番）       |
+| user_id       | TEXT    | ユーザーID（外部キー）   |
+| url_id        | INTEGER | URL ID（外部キー）       |
+| is_starred    | BOOLEAN | スターフラグ             |
+| read_status   | TEXT    | 既読状態（unread/read）  |
+| is_archived   | BOOLEAN | アーカイブフラグ         |
+| display_order | INTEGER | 表示順序                 |
+| version       | INTEGER | 楽観的ロック用バージョン |
+| created_at    | INTEGER | 作成日時                 |
+| updated_at    | INTEGER | 更新日時                 |
+
+注意: ユーザー固有のプロパティ（スター、既読、アーカイブ、表示順）のみを保存します。各ユーザーは同じURLに対して独自の設定を持つことができます。
 
 ## セキュリティ
 
@@ -350,6 +377,24 @@ pnpm run deploy
 - 重複チェック: 同一URLの重複登録防止
 - エラーハンドリング: 詳細なエラー情報の漏洩防止
 - アクセス制御: Cloudflare Zero Trust統合
+
+### 認証とアクセス制御
+
+- Better Authによる認証システム
+- GoogleとGitHubのOAuth 2.0認証（パスワード認証は非対応）
+- サーバーサイドセッション管理（7日間有効、1日ごとに更新）
+- CSRF保護（Origin検証、state/PKCE検証、SameSite=Lax）
+- セキュアクッキー（httpOnly, secure）
+- IPトラッキングによる不正アクセス検出
+- レート制限（60秒で10リクエスト）
+
+### データの分離
+
+- すべてのクエリで`WHERE user_id = ?`によるユーザー分離を実施
+- IDOR（Insecure Direct Object Reference）対策
+- アカウント管理API（連携解除・削除）でのユーザーID検証
+- 最後のアカウント保護（削除不可）
+- アカウント削除時のカスケード削除（bookmarks, categories, accounts, sessions）
 
 ### セキュリティベストプラクティス
 

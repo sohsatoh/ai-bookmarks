@@ -92,32 +92,24 @@ export const rateLimits = sqliteTable("rate_limit", {
   lastRequest: integer("last_request").notNull(), // Unixタイムスタンプ（ミリ秒）
 });
 
-// カテゴリテーブル（大カテゴリ・小カテゴリを統合）
+// カテゴリマスターテーブル（全ユーザー共有）
 export const categories = sqliteTable("categories", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }), // ユーザーIDで分離
-  name: text("name").notNull(),
+  name: text("name").notNull().unique(), // カテゴリ名（ユニーク制約で重複防止）
   type: text("type", { enum: ["major", "minor"] }).notNull(), // major: 大カテゴリ, minor: 小カテゴリ
   parentId: integer("parent_id").references(
     (): AnySQLiteColumn => categories.id
   ), // 小カテゴリの場合、親カテゴリID
   icon: text("icon"), // SVGアイコン（AI生成）
-  displayOrder: integer("display_order").notNull().default(0), // 表示順序
-  version: integer("version").notNull().default(0), // 楽観的ロック用バージョン
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
 
-// ブックマークテーブル
-export const bookmarks = sqliteTable("bookmarks", {
+// URLマスターテーブル（全ユーザー共有、AI生成メタデータ保存）
+export const urls = sqliteTable("urls", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }), // ユーザーIDで分離
-  url: text("url").notNull(),
+  url: text("url").notNull().unique(), // URL（ユニーク制約で重複防止）
   title: text("title").notNull(),
   description: text("description").notNull(),
   majorCategoryId: integer("major_category_id")
@@ -126,6 +118,23 @@ export const bookmarks = sqliteTable("bookmarks", {
   minorCategoryId: integer("minor_category_id")
     .notNull()
     .references(() => categories.id),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+// ユーザーブックマークテーブル（ユーザー固有のブックマーク設定）
+export const userBookmarks = sqliteTable("user_bookmarks", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }), // ユーザーIDで分離
+  urlId: integer("url_id")
+    .notNull()
+    .references(() => urls.id, { onDelete: "cascade" }), // URL参照
   isStarred: integer("is_starred", { mode: "boolean" })
     .notNull()
     .default(false),
@@ -147,8 +156,10 @@ export const bookmarks = sqliteTable("bookmarks", {
 
 export type Category = typeof categories.$inferSelect;
 export type NewCategory = typeof categories.$inferInsert;
-export type Bookmark = typeof bookmarks.$inferSelect;
-export type NewBookmark = typeof bookmarks.$inferInsert;
+export type Url = typeof urls.$inferSelect;
+export type NewUrl = typeof urls.$inferInsert;
+export type UserBookmark = typeof userBookmarks.$inferSelect;
+export type NewUserBookmark = typeof userBookmarks.$inferInsert;
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Session = typeof sessions.$inferSelect;

@@ -4,10 +4,17 @@
  * ユーザー情報の表示とログアウト機能を提供します。
  */
 
-import type { User } from "~/db/schema";
-
 interface HeaderProps {
-  user: User | null;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    emailVerified: boolean;
+    image?: string | null;
+    role: "user" | "admin";
+    createdAt: Date;
+    updatedAt: Date;
+  } | null;
 }
 
 export function Header({ user }: HeaderProps) {

@@ -10,7 +10,6 @@ import type { Route } from "./+types/home";
 import {
   getDb,
   getAllBookmarks,
-  createBookmark,
   getOrCreateCategory,
   getExistingCategories,
   getAllCategories,
@@ -18,8 +17,11 @@ import {
   deleteBookmark,
   updateBookmarkOrder,
   updateCategoryOrder,
+  getOrCreateUrl,
+  getUrlMetadata,
+  createUserBookmark,
 } from "~/services/db.server";
-import { bookmarks } from "~/db/schema";
+import { userBookmarks, urls } from "~/db/schema";
 import { and, eq } from "drizzle-orm";
 import { generateBookmarkMetadata } from "~/services/ai.server";
 import { fetchPageMetadata, validateUrl } from "~/services/scraper.server";
@@ -62,7 +64,7 @@ export async function loader({ context, request }: Route.LoaderArgs) {
 
   const [bookmarksByCategory, allCategories] = await Promise.all([
     getAllBookmarks(db, session.user.id),
-    getAllCategories(db, session.user.id),
+    getAllCategories(db),
   ]);
 
   // スター付きブックマークを収集
@@ -130,18 +132,23 @@ export async function action({ request, context }: Route.ActionArgs) {
     }
 
     const id = Number(bookmarkId);
-    if (isNaN(id) || id <= 0) {
+    if (Number.isNaN(id) || id <= 0) {
       return { error: "無効なリクエストです" };
     }
 
     try {
       // スター状態を反転（userIdフィルタで認可チェック）
       const result = await db
-        .update(bookmarks)
+        .update(userBookmarks)
         .set({
-          isStarred: currentStarred === "true" ? false : true,
+          isStarred: currentStarred !== "true",
         })
-        .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, session.user.id)))
+        .where(
+          and(
+            eq(userBookmarks.id, id),
+            eq(userBookmarks.userId, session.user.id)
+          )
+        )
         .returning();
 
       if (result.length === 0) {
@@ -170,17 +177,22 @@ export async function action({ request, context }: Route.ActionArgs) {
     }
 
     const id = Number(bookmarkId);
-    if (isNaN(id) || id <= 0) {
+    if (Number.isNaN(id) || id <= 0) {
       return { error: "無効なリクエストです" };
     }
 
     try {
       const result = await db
-        .update(bookmarks)
+        .update(userBookmarks)
         .set({
           readStatus: currentStatus === "read" ? "unread" : "read",
         })
-        .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, session.user.id)))
+        .where(
+          and(
+            eq(userBookmarks.id, id),
+            eq(userBookmarks.userId, session.user.id)
+          )
+        )
         .returning();
 
       if (result.length === 0) {
@@ -209,17 +221,22 @@ export async function action({ request, context }: Route.ActionArgs) {
     }
 
     const id = Number(bookmarkId);
-    if (isNaN(id) || id <= 0) {
+    if (Number.isNaN(id) || id <= 0) {
       return { error: "無効なリクエストです" };
     }
 
     try {
       const result = await db
-        .update(bookmarks)
+        .update(userBookmarks)
         .set({
-          isArchived: currentArchived === "true" ? false : true,
+          isArchived: currentArchived !== "true",
         })
-        .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, session.user.id)))
+        .where(
+          and(
+            eq(userBookmarks.id, id),
+            eq(userBookmarks.userId, session.user.id)
+          )
+        )
         .returning();
 
       if (result.length === 0) {
@@ -248,7 +265,7 @@ export async function action({ request, context }: Route.ActionArgs) {
     }
 
     const id = Number(bookmarkId);
-    if (isNaN(id) || id <= 0) {
+    if (Number.isNaN(id) || id <= 0) {
       return { error: "無効なリクエストです" };
     }
 
@@ -275,7 +292,7 @@ export async function action({ request, context }: Route.ActionArgs) {
     }
 
     const id = Number(bookmarkId);
-    if (isNaN(id) || id <= 0) {
+    if (Number.isNaN(id) || id <= 0) {
       return { error: "無効なリクエストです" };
     }
 
@@ -284,35 +301,32 @@ export async function action({ request, context }: Route.ActionArgs) {
     }
 
     try {
-      // カテゴリを取得または作成
+      // カテゴリを取得または作成（userIdパラメータなし）
       const majorCategoryId = await getOrCreateCategory(
         db,
-        session.user.id,
         majorCategory,
         "major"
       );
       const minorCategoryId = await getOrCreateCategory(
         db,
-        session.user.id,
         minorCategory,
         "minor",
         majorCategoryId
       );
 
-      // ブックマークを更新（userIdフィルタで認可チェック）
-      const result = await db
-        .update(bookmarks)
-        .set({
-          title: title.slice(0, 500),
-          description: description.slice(0, 1000),
-          majorCategoryId,
-          minorCategoryId,
-          updatedAt: new Date(),
-        })
-        .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, session.user.id)))
-        .returning();
+      // ユーザーブックマークから対応するURLを取得
+      const userBookmark = await db
+        .select()
+        .from(userBookmarks)
+        .where(
+          and(
+            eq(userBookmarks.id, id),
+            eq(userBookmarks.userId, session.user.id)
+          )
+        )
+        .limit(1);
 
-      if (result.length === 0) {
+      if (userBookmark.length === 0) {
         console.error(
           "Bookmark not found or unauthorized:",
           id,
@@ -320,6 +334,18 @@ export async function action({ request, context }: Route.ActionArgs) {
         );
         return { error: "処理に失敗しました" };
       }
+
+      // URLマスターテーブルを更新（メタデータ部分）
+      await db
+        .update(urls)
+        .set({
+          title: title.slice(0, 500),
+          description: description.slice(0, 1000),
+          majorCategoryId,
+          minorCategoryId,
+          updatedAt: new Date(),
+        })
+        .where(eq(urls.id, userBookmark[0].urlId));
 
       return {
         success: true,
@@ -349,11 +375,20 @@ export async function action({ request, context }: Route.ActionArgs) {
     }
 
     try {
-      // 既存ブックマーク情報を取得
+      // 既存ブックマーク情報を取得（userBookmarksとurlsを結合）
       const existingBookmark = await db
-        .select()
-        .from(bookmarks)
-        .where(eq(bookmarks.id, id))
+        .select({
+          userBookmark: userBookmarks,
+          url: urls,
+        })
+        .from(userBookmarks)
+        .innerJoin(urls, eq(userBookmarks.urlId, urls.id))
+        .where(
+          and(
+            eq(userBookmarks.id, id),
+            eq(userBookmarks.userId, session.user.id)
+          )
+        )
         .limit(1);
 
       if (existingBookmark.length === 0) {
@@ -365,43 +400,38 @@ export async function action({ request, context }: Route.ActionArgs) {
 
       // ページメタデータを再取得
       const { title, description, content } = await fetchPageMetadata(
-        bookmark.url
+        bookmark.url.url
       );
 
-      // 既存カテゴリ取得
-      const existingCategories = await getExistingCategories(
-        db,
-        session.user.id
-      );
+      // 既存カテゴリ取得（userIdパラメータなし）
+      const existingCategories = await getExistingCategories(db);
 
       // AIでメタデータ生成
       const metadata = await generateBookmarkMetadata(
         context.cloudflare.env.AI,
-        bookmark.url,
+        bookmark.url.url,
         title,
         description,
         content,
         existingCategories
       );
 
-      // カテゴリを取得または作成
+      // カテゴリを取得または作成（userIdパラメータなし）
       const majorCategoryId = await getOrCreateCategory(
         db,
-        session.user.id,
         metadata.majorCategory,
         "major"
       );
       const minorCategoryId = await getOrCreateCategory(
         db,
-        session.user.id,
         metadata.minorCategory,
         "minor",
         majorCategoryId
       );
 
-      // ブックマーク情報を更新
+      // URLマスターテーブルを更新
       await db
-        .update(bookmarks)
+        .update(urls)
         .set({
           title,
           description: metadata.description,
@@ -409,7 +439,7 @@ export async function action({ request, context }: Route.ActionArgs) {
           minorCategoryId,
           updatedAt: new Date(),
         })
-        .where(eq(bookmarks.id, id));
+        .where(eq(urls.id, bookmark.url.id));
 
       return {
         success: true,
@@ -440,10 +470,10 @@ export async function action({ request, context }: Route.ActionArgs) {
     }
 
     try {
-      // すべてのブックマークを取得
-      const allBookmarksFlat = await db.select().from(bookmarks);
+      // すべてのURLマスターを取得
+      const allUrls = await db.select().from(urls);
 
-      if (allBookmarksFlat.length === 0) {
+      if (allUrls.length === 0) {
         return {
           error: "更新するブックマークがありません",
           toast: {
@@ -459,54 +489,50 @@ export async function action({ request, context }: Route.ActionArgs) {
         (async () => {
           // eslint-disable-next-line no-console
           console.log(
-            `[Refresh All] Starting batch update for ${allBookmarksFlat.length} bookmarks`
+            `[Refresh All] Starting batch update for ${allUrls.length} URLs`
           );
 
-          const existingCategories = await getExistingCategories(
-            db,
-            session.user.id
-          );
+          // 既存カテゴリ取得（userIdパラメータなし）
+          const existingCategories = await getExistingCategories(db);
           let successCount = 0;
           let errorCount = 0;
 
-          for (const bookmark of allBookmarksFlat) {
+          for (const urlData of allUrls) {
             try {
               // eslint-disable-next-line no-console
-              console.log(`[Refresh All] Processing: ${bookmark.url}`);
+              console.log(`[Refresh All] Processing: ${urlData.url}`);
 
               // ページメタデータを再取得
               const { title, description, content } = await fetchPageMetadata(
-                bookmark.url
+                urlData.url
               );
 
               // AIでメタデータ生成
               const metadata = await generateBookmarkMetadata(
                 context.cloudflare.env.AI,
-                bookmark.url,
+                urlData.url,
                 title,
                 description,
                 content,
                 existingCategories
               );
 
-              // カテゴリを取得または作成
+              // カテゴリを取得または作成（userIdパラメータなし）
               const majorCategoryId = await getOrCreateCategory(
                 db,
-                session.user.id,
                 metadata.majorCategory,
                 "major"
               );
               const minorCategoryId = await getOrCreateCategory(
                 db,
-                session.user.id,
                 metadata.minorCategory,
                 "minor",
                 majorCategoryId
               );
 
-              // ブックマーク情報を更新
+              // URLマスターテーブルを更新
               await db
-                .update(bookmarks)
+                .update(urls)
                 .set({
                   title,
                   description: metadata.description,
@@ -514,17 +540,17 @@ export async function action({ request, context }: Route.ActionArgs) {
                   minorCategoryId,
                   updatedAt: new Date(),
                 })
-                .where(eq(bookmarks.id, bookmark.id));
+                .where(eq(urls.id, urlData.id));
 
               successCount++;
               // eslint-disable-next-line no-console
-              console.log(`[Refresh All] Success: ${bookmark.url}`);
+              console.log(`[Refresh All] Success: ${urlData.url}`);
 
               // レート制限を考慮して少し待機
               await new Promise((resolve) => setTimeout(resolve, 1000));
             } catch (error) {
               errorCount++;
-              console.error(`[Refresh All] Failed for ${bookmark.url}:`, error);
+              console.error(`[Refresh All] Failed for ${urlData.url}:`, error);
             }
           }
 
@@ -540,7 +566,7 @@ export async function action({ request, context }: Route.ActionArgs) {
         toast: {
           type: "info" as const,
           title: "一括更新を開始",
-          message: `${allBookmarksFlat.length}件のブックマークを更新しています...`,
+          message: `${allUrls.length}件のブックマークを更新しています...`,
         },
       };
     } catch (error) {
@@ -828,49 +854,64 @@ export async function action({ request, context }: Route.ActionArgs) {
           // eslint-disable-next-line no-console
           console.log("[Background] Starting AI processing for:", url);
 
-          // 既存カテゴリ取得
-          const existingCategories = await getExistingCategories(
-            db,
-            session.user.id
-          );
+          // 既存URLメタデータをチェック（AI呼び出しスキップ用）
+          const existingUrlData = await getUrlMetadata(db, url);
 
-          // AIでメタデータ生成
-          const metadata = await generateBookmarkMetadata(
-            context.cloudflare.env.AI,
-            url,
-            title,
-            description,
-            content,
-            existingCategories
-          );
+          let urlId: number;
 
-          // eslint-disable-next-line no-console
-          console.log("[Background] AI processing completed, saving to DB");
+          if (existingUrlData) {
+            // 既存URLがある場合、そのメタデータを使用（AI呼び出しスキップ）
+            // eslint-disable-next-line no-console
+            console.log(
+              "[Background] Existing URL found, skipping AI processing"
+            );
+            urlId = existingUrlData.id;
+          } else {
+            // 新規URLの場合、AIでメタデータ生成
+            // 既存カテゴリ取得（userIdパラメータなし）
+            const existingCategories = await getExistingCategories(db);
 
-          // カテゴリを取得または作成
-          const majorCategoryId = await getOrCreateCategory(
-            db,
-            session.user.id,
-            metadata.majorCategory,
-            "major",
-            undefined
-          );
-          const minorCategoryId = await getOrCreateCategory(
-            db,
-            session.user.id,
-            metadata.minorCategory,
-            "minor",
-            majorCategoryId
-          );
+            // AIでメタデータ生成
+            const metadata = await generateBookmarkMetadata(
+              context.cloudflare.env.AI,
+              url,
+              title,
+              description,
+              content,
+              existingCategories
+            );
 
-          // ブックマーク作成
-          await createBookmark(db, {
+            // eslint-disable-next-line no-console
+            console.log("[Background] AI processing completed, saving to DB");
+
+            // カテゴリを取得または作成（userIdパラメータなし）
+            const majorCategoryId = await getOrCreateCategory(
+              db,
+              metadata.majorCategory,
+              "major"
+            );
+            const minorCategoryId = await getOrCreateCategory(
+              db,
+              metadata.minorCategory,
+              "minor",
+              majorCategoryId
+            );
+
+            // URLマスター作成
+            const urlResult = await getOrCreateUrl(db, {
+              url,
+              title,
+              description: metadata.description,
+              majorCategoryId,
+              minorCategoryId,
+            });
+            urlId = urlResult.id;
+          }
+
+          // ユーザーブックマーク作成
+          await createUserBookmark(db, {
             userId: session.user.id,
-            url: url,
-            title,
-            description: metadata.description,
-            majorCategoryId,
-            minorCategoryId,
+            urlId,
           });
 
           // eslint-disable-next-line no-console

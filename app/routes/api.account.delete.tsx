@@ -13,7 +13,7 @@ import type { Route } from "./+types/api.account.delete";
 import { requireAuth, signOut } from "~/services/auth.server";
 import { drizzle } from "drizzle-orm/d1";
 import { eq } from "drizzle-orm";
-import { users, accounts, sessions, bookmarks, categories } from "~/db/schema";
+import { users, accounts, sessions, userBookmarks } from "~/db/schema";
 
 export async function action({ request, context }: Route.ActionArgs) {
   // 1. セッション検証
@@ -27,11 +27,10 @@ export async function action({ request, context }: Route.ActionArgs) {
     // usersを削除すると自動的に関連データも削除される
     // しかし、明示的に削除することで確実性を高める
 
-    // ブックマーク削除(ユーザーID一致確認)
-    await db.delete(bookmarks).where(eq(bookmarks.userId, session.user.id));
-
-    // カテゴリ削除(ユーザーID一致確認)
-    await db.delete(categories).where(eq(categories.userId, session.user.id));
+    // ユーザーブックマーク削除(ユーザーID一致確認)
+    await db
+      .delete(userBookmarks)
+      .where(eq(userBookmarks.userId, session.user.id));
 
     // アカウント削除(ユーザーID一致確認)
     await db.delete(accounts).where(eq(accounts.userId, session.user.id));

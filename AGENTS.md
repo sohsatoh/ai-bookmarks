@@ -104,9 +104,23 @@ ai-bookmarks/
 ### 重要なファイル
 
 - `app/constants.ts`: すべての設定値（AI、セキュリティ、UI等）
-- `app/db/schema.ts`: データベーススキーマ定義（認証テーブル含む）
+- `app/db/schema.ts`: データベーススキーマ定義
+  - 認証テーブル: Better Auth用（passwordフィールドなし）
+  - `categories`: 全ユーザー共有のカテゴリマスター（userIdなし）
+  - `urls`: 全ユーザー共有のURLマスターとAI生成メタデータ
+  - `user_bookmarks`: ユーザー固有のブックマーク設定（スター、既読、アーカイブ、表示順）
+- `app/services/db.server.ts`: データベース操作レイヤー
+  - URL重複チェックとAI呼び出しスキップ機能
+  - カテゴリとURLの共有管理
+  - ユーザーブックマークの分離管理
+- `app/services/ai.server.ts`: AI処理（Workers AI）
+  - 既存カテゴリとの類似性を考慮
+  - 2回目以降のURL追加ではAI呼び出しをスキップ
 - `app/services/auth.server.ts`: Better Auth認証処理
 - `app/services/security.server.ts`: セキュリティ関連の処理
+- `app/routes/settings.tsx`: アカウント管理UI
+- `app/routes/api.account.unlink.tsx`: アカウント連携解除API
+- `app/routes/api.account.delete.tsx`: アカウント削除API
 - `wrangler.jsonc`: Cloudflare Workers設定
 - `.dev.vars`: ローカル開発用環境変数（Gitにコミットしない）
 
@@ -222,7 +236,7 @@ if (title.length > AI_CONFIG.TITLE_MAX_LENGTH) {
 
 ### 認証とアクセス制御
 
-- Better Authによる認証: GoogleとGitHubのOAuth 2.0
+- Better Authによる認証: GoogleとGitHubのOAuth 2.0（パスワード認証は非対応）
 - セッション管理: サーバーサイドセッション（7日間有効、1日ごとに更新）
 - CSRF保護: Origin検証、state/PKCE検証、SameSite=Lax
 - ユーザー分離: すべてのクエリに`WHERE user_id = ?`フィルタを必須
@@ -239,6 +253,46 @@ const bookmarks = await db
 
 // ❌ 間違った例: ユーザーIDフィルタなし（他のユーザーのデータが見える）
 const bookmarks = await db.select().from(bookmarks);
+```
+
+### アカウント管理のセキュリティ
+
+- アカウント連携解除:
+  - セッション検証（`requireAuth`）必須
+  - ユーザーID検証（IDOR対策）
+  - 最後のアカウント保護（削除不可）
+  - WHERE句でユーザーIDフィルタリング必須
+- アカウント削除:
+  - すべての削除操作に`WHERE userId = ?`を明記
+  - カスケード削除順序: bookmarks → categories → accounts → sessions → user
+  - セッション破棄とログアウトリダイレクト
+  - 確認ダイアログ（「削除する」入力必須）
+
+```typescript
+// ✅ 正しい例: アカウント連携解除
+const session = await requireAuth(request, context);
+const userAccounts = await db
+  .select()
+  .from(accounts)
+  .where(eq(accounts.userId, session.user.id));
+
+if (userAccounts.length <= 1) {
+  return data({ error: "最後のアカウントは削除できません" }, { status: 400 });
+}
+
+const targetAccount = userAccounts.find((acc) => acc.id === accountId);
+if (!targetAccount) {
+  return data({ error: "不正なリクエスト" }, { status: 403 });
+}
+
+await db.delete(accounts).where(eq(accounts.id, accountId));
+
+// ✅ 正しい例: アカウント削除
+await db.delete(bookmarks).where(eq(bookmarks.userId, session.user.id));
+await db.delete(categories).where(eq(categories.userId, session.user.id));
+await db.delete(accounts).where(eq(accounts.userId, session.user.id));
+await db.delete(sessions).where(eq(sessions.userId, session.user.id));
+await db.delete(users).where(eq(users.id, session.user.id));
 ```
 
 ## コーディング規約
@@ -294,6 +348,37 @@ interface BookmarkCardProps {
 const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, onDelete }) => {
   return <div>{bookmark.title}</div>;
 };
+```
+
+### React Router 7
+
+- Route型定義: `Route.LoaderArgs`、`Route.ActionArgs`を使用
+- レスポンス: `data()`関数を使用（`json()`は非推奨）
+- リダイレクト: `redirect()`関数を使用
+
+```typescript
+// ✅ 正しい例
+import type { Route } from "./+types/api.account.unlink";
+import { data, redirect } from "react-router";
+
+export async function action({ request, context }: Route.ActionArgs) {
+  const session = await requireAuth(request, context);
+
+  // エラーレスポンス
+  if (error) {
+    return data({ error: "エラーメッセージ" }, { status: 400 });
+  }
+
+  // 成功時のリダイレクト
+  return redirect("/settings");
+}
+
+// ❌ 間違った例（React Router 7では非推奨）
+import { json } from "@remix-run/cloudflare";
+
+export async function action({ request }) {
+  return json({ error: "エラー" });
+}
 ```
 
 ### データベース操作
@@ -402,7 +487,13 @@ pnpm run db:migrate:prod
 
 # Drizzle Studio起動（GUI）
 pnpm run db:studio
+
+# マイグレーションの完全リセット（開発時のみ）
+rm -rf migrations && mkdir migrations && pnpm run db:generate
+rm -rf .wrangler/state && pnpm run db:migrate
 ```
+
+注意: マイグレーションが破損した場合や大きなスキーマ変更がある場合、完全リセットを推奨します。本番環境では慎重に実施してください。
 
 ### ビルド前の確認事項
 
@@ -600,6 +691,7 @@ npx wrangler types
 
 ## 更新履歴
 
+- 2026-01-04: アカウント管理機能を追加（設定ページ、連携解除、削除）、passwordフィールド削除、マイグレーション完全リセット、React Router 7パターン追加
 - 2026-01-04: Better Auth認証機能を追加、ユーザー分離を実装、新機能追加（starred、read_status、archived）
 - 2026-01-04: PrettierとESLintの設定を追加、VS Code拡張機能推奨、フォーマット・Lintルールを業界標準に設定
 - 2026-01-03: 初版作成、包括的な開発ガイドラインを作成

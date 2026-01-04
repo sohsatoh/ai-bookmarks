@@ -16,6 +16,7 @@
 
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { passkey } from "@better-auth/passkey";
 import type { AppLoadContext } from "react-router";
 import { drizzle } from "drizzle-orm/d1";
 import { eq } from "drizzle-orm";
@@ -41,12 +42,34 @@ export function createAuth(context: AppLoadContext) {
         account: schema.accounts,
         verification: schema.verifications,
         rateLimit: schema.rateLimits,
+        passkey: schema.passkeys,
       },
     }),
 
     // 基本設定
     baseURL: context.cloudflare.env.BETTER_AUTH_URL,
     secret: context.cloudflare.env.BETTER_AUTH_SECRET,
+
+    // プラグイン設定
+    plugins: [
+      passkey({
+        // Relying Party ID: ドメイン名（ローカル開発ではlocalhost）
+        rpID: new URL(context.cloudflare.env.BETTER_AUTH_URL).hostname,
+        // Relying Party Name: サービス名
+        rpName: "AI Bookmarks",
+        // Origin: 認証サーバーのURL（末尾スラッシュなし）
+        origin: context.cloudflare.env.BETTER_AUTH_URL,
+        // Authenticator Selection Criteria
+        authenticatorSelection: {
+          // プラットフォーム認証を優先（指紋認証、Face ID等）
+          authenticatorAttachment: "platform",
+          // ユーザー認証を推奨（生体認証やPIN）
+          userVerification: "preferred",
+          // クレデンシャルの保存を推奨
+          residentKey: "preferred",
+        },
+      }),
+    ],
 
     // セッション設定
     session: {

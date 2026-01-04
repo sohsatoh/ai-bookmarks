@@ -92,6 +92,25 @@ export const rateLimits = sqliteTable("rate_limit", {
   lastRequest: integer("last_request").notNull(), // Unixタイムスタンプ（ミリ秒）
 });
 
+// パスキーテーブル（Better Auth Passkey Plugin用）
+export const passkeys = sqliteTable("passkey", {
+  id: text("id").primaryKey(),
+  name: text("name"), // パスキー名（ユーザーが識別できるラベル）
+  publicKey: text("public_key").notNull(), // 公開鍵
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }), // ユーザーID
+  credentialID: text("credential_id").notNull(), // 認証情報の一意ID
+  counter: integer("counter").notNull(), // リプレイアタック検出用カウンター
+  deviceType: text("device_type").notNull(), // デバイスタイプ（"platform" or "cross-platform"）
+  backedUp: integer("backed_up", { mode: "boolean" }).notNull(), // バックアップ有無
+  transports: text("transports"), // トランスポート情報（JSON形式）
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  aaguid: text("aaguid"), // Authenticator Attestation GUID
+});
+
 // カテゴリマスターテーブル（全ユーザー共有）
 export const categories = sqliteTable("categories", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -223,3 +242,5 @@ export type Verification = typeof verifications.$inferSelect;
 export type NewVerification = typeof verifications.$inferInsert;
 export type RateLimit = typeof rateLimits.$inferSelect;
 export type NewRateLimit = typeof rateLimits.$inferInsert;
+export type Passkey = typeof passkeys.$inferSelect;
+export type NewPasskey = typeof passkeys.$inferInsert;

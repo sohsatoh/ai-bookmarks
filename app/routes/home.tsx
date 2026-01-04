@@ -22,6 +22,7 @@ import { initBroadcastChannel, broadcast, closeBroadcastChannel, type BroadcastM
 import { ToastContainer, type ToastMessage } from "~/components/Toast";
 import { Footer } from "~/components/Footer";
 import { UI_CONFIG } from "~/constants";
+import type { BookmarkWithCategories } from "~/types/bookmark";
 
 export function meta(_args: Route.MetaArgs) {
   return [
@@ -826,6 +827,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
 
   const handleDrop = async (e: React.DragEvent, targetType: 'bookmark' | 'category', targetId: number, targetOrder: number, minorCategoryId?: number) => {
     e.preventDefault();
+    e.stopPropagation();
     
     if (!draggedItem || draggedItem.type !== targetType || draggedItem.id === targetId) {
       setDraggedItem(null);
@@ -834,25 +836,26 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
     }
 
     try {
+      // ブックマークの並び替えのみ対応（カテゴリはボタンで移動）
       if (targetType === 'bookmark') {
         // ブックマークの並び替え
         // ドラッグ元とドロップ先のカテゴリを取得
-        let draggedCategory = null;
-        let targetCategory = null;
+        let draggedCategoryId: number | null = null;
+        let targetCategoryId: number | null = null;
         
-        for (const major of loaderData.bookmarksByCategory) {
+        for (const major of displayBookmarks) {
           for (const minor of major.minorCategories) {
             if (minor.bookmarks.some(b => b.id === draggedItem.id)) {
-              draggedCategory = minor;
+              draggedCategoryId = minor.minorCategoryId;
             }
             if (minor.bookmarks.some(b => b.id === targetId)) {
-              targetCategory = minor;
+              targetCategoryId = minor.minorCategoryId;
             }
           }
         }
         
-        if (!draggedCategory || !targetCategory) return;
-        if (draggedCategory !== targetCategory) {
+        if (draggedCategoryId === null || targetCategoryId === null) return;
+        if (draggedCategoryId !== targetCategoryId) {
           // 異なるカテゴリ間での移動を試みた場合の警告トースト
           const toastId = Date.now().toString();
           setToasts(prev => [...prev, {
@@ -866,7 +869,17 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
           return;
         }
 
-        const bookmarksInCategory = [...targetCategory.bookmarks];
+        // カテゴリIDベースで検索
+        type BookmarkArray = BookmarkWithCategories[];
+        let bookmarksInCategory: BookmarkArray = [];
+        for (const major of displayBookmarks) {
+          const minor = major.minorCategories.find(m => m.minorCategoryId === targetCategoryId);
+          if (minor) {
+            bookmarksInCategory = [...minor.bookmarks];
+            break;
+          }
+        }
+
         const draggedIndex = bookmarksInCategory.findIndex(b => b.id === draggedItem.id);
         const targetIndex = bookmarksInCategory.findIndex(b => b.id === targetId);
         
@@ -885,22 +898,28 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
           insertIndex--;
         }
 
+        // 同じ位置なら何もしない
+        if (draggedIndex === insertIndex) {
+          setDraggedItem(null);
+          setDragOverItem(null);
+          return;
+        }
+
         // 配列を並び替え
         const [removed] = bookmarksInCategory.splice(draggedIndex, 1);
         bookmarksInCategory.splice(insertIndex, 0, removed);
 
         // 楽観的UI更新: ローカルstateを即座に更新
         setOptimisticBookmarks(prevBookmarks => {
-          const newBookmarks = prevBookmarks.map(major => ({
+          return prevBookmarks.map(major => ({
             ...major,
             minorCategories: major.minorCategories.map(minor => {
-              if (minor === targetCategory) {
+              if (minor.minorCategoryId === targetCategoryId) {
                 return { ...minor, bookmarks: bookmarksInCategory };
               }
               return minor;
             })
           }));
-          return newBookmarks;
         });
 
         // 新しい順序を計算
@@ -915,49 +934,12 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
         formData.append('orders', JSON.stringify(orders));
         
         submit(formData, { method: 'post', action: '/?index' });
-      } else if (targetType === 'category') {
-        // カテゴリの並び替え
-        const categories = loaderData.bookmarksByCategory;
-        const draggedIndex = categories.findIndex(c => c.majorCategoryId === draggedItem.id);
-        const targetIndex = categories.findIndex(c => c.majorCategoryId === targetId);
-        
-        if (draggedIndex === -1 || targetIndex === -1) return;
-
-        // positionに基づいて挿入位置を調整
-        const position = dragOverItem?.position || 'after';
-        let insertIndex = targetIndex;
-        
-        if (position === 'after') {
-          insertIndex = targetIndex + 1;
-        }
-        
-        // draggedIndexがinsertIndexより前にある場合、削除後にindexがずれるので調整
-        if (draggedIndex < insertIndex) {
-          insertIndex--;
-        }
-
-        const reordered = [...categories];
-        const [removed] = reordered.splice(draggedIndex, 1);
-        reordered.splice(insertIndex, 0, removed);
-
-        // 楽観的UI更新: ローカルstateを即座に更新
-        setOptimisticBookmarks(reordered);
-
-        // 新しい順序を計算
-        const orders = reordered.map((category, index) => ({
-          id: category.majorCategoryId,
-          order: index
-        }));
-
-        // サーバーに送信
-        const formData = new FormData();
-        formData.append('intent', 'reorderCategories');
-        formData.append('orders', JSON.stringify(orders));
-        
-        submit(formData, { method: 'post', action: '/?index' });
       }
     } catch (error) {
       console.error('Reorder failed:', error);
+      // エラーが発生したら楽観的stateをリセット
+      setOptimisticBookmarks(loaderData.bookmarksByCategory);
+      
       // エラートーストを表示
       const toastId = Date.now().toString();
       setToasts(prev => [...prev, {
@@ -975,6 +957,91 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
   const handleDragEnd = () => {
     setDraggedItem(null);
     setDragOverItem(null);
+  };
+
+  // カテゴリをボタンで移動するハンドラー
+  const handleMoveCategoryUp = async (majorCategoryId: number, currentIndex: number) => {
+    if (currentIndex === 0) return; // 既に一番上
+    
+    try {
+      const categories = [...displayBookmarks];
+      const targetIndex = currentIndex - 1;
+      
+      // 配列を並び替え
+      const [removed] = categories.splice(currentIndex, 1);
+      categories.splice(targetIndex, 0, removed);
+      
+      // 楽観的UI更新
+      setOptimisticBookmarks(categories);
+      
+      // 新しい順序を計算
+      const orders = categories.map((category, index) => ({
+        id: category.majorCategoryId,
+        order: index
+      }));
+      
+      // サーバーに送信
+      const formData = new FormData();
+      formData.append('intent', 'reorderCategories');
+      formData.append('orders', JSON.stringify(orders));
+      
+      submit(formData, { method: 'post', action: '/?index' });
+    } catch (error) {
+      console.error('Move category up failed:', error);
+      // エラーが発生したら楽観的stateをリセット
+      setOptimisticBookmarks(loaderData.bookmarksByCategory);
+      
+      // エラートーストを表示
+      const toastId = Date.now().toString();
+      setToasts(prev => [...prev, {
+        id: toastId,
+        type: "error" as const,
+        title: "エラー",
+        message: "カテゴリの移動に失敗しました",
+      }]);
+    }
+  };
+
+  const handleMoveCategoryDown = async (majorCategoryId: number, currentIndex: number) => {
+    if (currentIndex === displayBookmarks.length - 1) return; // 既に一番下
+    
+    try {
+      const categories = [...displayBookmarks];
+      const targetIndex = currentIndex + 1;
+      
+      // 配列を並び替え
+      const [removed] = categories.splice(currentIndex, 1);
+      categories.splice(targetIndex, 0, removed);
+      
+      // 楽観的UI更新
+      setOptimisticBookmarks(categories);
+      
+      // 新しい順序を計算
+      const orders = categories.map((category, index) => ({
+        id: category.majorCategoryId,
+        order: index
+      }));
+      
+      // サーバーに送信
+      const formData = new FormData();
+      formData.append('intent', 'reorderCategories');
+      formData.append('orders', JSON.stringify(orders));
+      
+      submit(formData, { method: 'post', action: '/?index' });
+    } catch (error) {
+      console.error('Move category down failed:', error);
+      // エラーが発生したら楽観的stateをリセット
+      setOptimisticBookmarks(loaderData.bookmarksByCategory);
+      
+      // エラートーストを表示
+      const toastId = Date.now().toString();
+      setToasts(prev => [...prev, {
+        id: toastId,
+        type: "error" as const,
+        title: "エラー",
+        message: "カテゴリの移動に失敗しました",
+      }]);
+    }
   };
 
   return (
@@ -1349,37 +1416,39 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
             )}
 
             {displayBookmarks.map((major, majorIndex) => {
-              const isCategoryDragging = draggedItem?.type === 'category' && draggedItem.id === major.majorCategoryId;
-              const isCategoryDragOver = dragOverItem?.type === 'category' && dragOverItem.id === major.majorCategoryId;
-              const showCategoryBeforeLine = isCategoryDragOver && dragOverItem?.position === 'before';
-              const showCategoryAfterLine = isCategoryDragOver && dragOverItem?.position === 'after';
-              
               return (
               <div key={major.majorCategory} id={major.majorCategory} className="space-y-8 scroll-mt-24 relative">
-                {/* カテゴリ挿入位置インジケーター（前） - カテゴリ間の境界に表示 */}
-                {showCategoryBeforeLine && (
-                  <div className="absolute -top-6 left-0 right-0 h-0.5 bg-blue-500 dark:bg-blue-400 z-20 shadow-lg" />
-                )}
-                
-                <h2
-                  draggable
-                  onDragStart={() => handleDragStart('category', major.majorCategoryId, majorIndex)}
-                  onDragOver={(e) => handleDragOver(e, 'category', major.majorCategoryId)}
-                  onDrop={(e) => handleDrop(e, 'category', major.majorCategoryId, majorIndex)}
-                  onDragEnd={handleDragEnd}
-                  className={`text-xl sm:text-2xl md:text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight flex items-center gap-3 pb-4 border-b transition-all duration-200 ${
-                    isCategoryDragging 
-                      ? 'opacity-30 cursor-grabbing border-gray-400 dark:border-gray-600' 
-                      : 'cursor-grab border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
-                  } ${
-                    isCategoryDragOver ? 'scale-105' : ''
-                  }`}
-                >
-                  <svg className="w-5 h-5 text-gray-400 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9h8M8 15h8" />
-                  </svg>
-                  {major.majorCategory}
-                </h2>
+                <div className="flex items-center gap-3 pb-4 border-b border-gray-200 dark:border-gray-800">
+                  <h2 className="text-xl sm:text-2xl md:text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight flex-1">
+                    {major.majorCategory}
+                  </h2>
+                  
+                  {/* カテゴリ移動ボタン */}
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleMoveCategoryUp(major.majorCategoryId, majorIndex)}
+                      disabled={majorIndex === 0}
+                      className="p-2 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-gray-400"
+                      title="上に移動"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleMoveCategoryDown(major.majorCategoryId, majorIndex)}
+                      disabled={majorIndex === displayBookmarks.length - 1}
+                      className="p-2 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-gray-400"
+                      title="下に移動"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
 
                 {major.minorCategories.map((minor) => (
                   <div key={minor.minorCategory} id={`${major.majorCategory}-${minor.minorCategory}`} className="space-y-4 scroll-mt-24">
@@ -1615,11 +1684,6 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                     </div>
                   </div>
                 ))}
-                
-                {/* カテゴリ挿入位置インジケーター（後） - カテゴリ間の境界に表示 */}
-                {showCategoryAfterLine && (
-                  <div className="absolute -bottom-6 left-0 right-0 h-0.5 bg-blue-500 dark:bg-blue-400 z-20 shadow-lg" />
-                )}
               </div>
               );
             })}

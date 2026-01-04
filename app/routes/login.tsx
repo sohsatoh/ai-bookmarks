@@ -57,7 +57,7 @@ export default function Login() {
         throw new Error("予期しないレスポンスが返されました");
       }
 
-      const data = await response.json() as { url?: string };
+      const data = (await response.json()) as { url?: string };
       // OAuthプロバイダーのURLにリダイレクト
       if (data.url) {
         globalThis.location.href = data.url;

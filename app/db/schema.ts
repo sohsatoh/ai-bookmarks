@@ -32,6 +32,7 @@ export const sessions = sqliteTable("session", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+  token: text("token").notNull().unique(), // セッショントークン
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
   createdAt: integer("created_at", { mode: "timestamp" })
@@ -51,8 +52,16 @@ export const accounts = sqliteTable("account", {
   accountId: text("account_id").notNull(), // プロバイダー側のユーザーID
   providerId: text("provider_id").notNull(), // "google" or "github"
   accessToken: text("access_token"),
+  accessTokenExpiresAt: integer("access_token_expires_at", {
+    mode: "timestamp",
+  }), // アクセストークン有効期限
   refreshToken: text("refresh_token"),
+  refreshTokenExpiresAt: integer("refresh_token_expires_at", {
+    mode: "timestamp",
+  }), // リフレッシュトークン有効期限
+  idToken: text("id_token"), // OpenID Connect IDトークン
   expiresAt: integer("expires_at", { mode: "timestamp" }),
+  scope: text("scope"), // OAuthスコープ
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),

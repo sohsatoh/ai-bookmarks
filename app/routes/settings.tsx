@@ -1,0 +1,238 @@
+/**
+ * アカウント設定ページ
+ *
+ * 機能:
+ * - 連携済みアカウント一覧表示
+ * - 新規アカウント連携(OAuth)
+ * - アカウント連携解除
+ * - アカウント完全削除
+ *
+ * セキュリティ:
+ * - セッション検証(requireAuth)
+ * - ユーザーID一致確認(IDOR対策)
+ * - 最後の認証方法は削除不可(ログイン不能防止)
+ * - アカウント削除時の確認ダイアログ
+ */
+
+import { useLoaderData, useFetcher, data } from "react-router";
+import type { Route } from "./+types/settings";
+import { requireAuth } from "~/services/auth.server";
+import { drizzle } from "drizzle-orm/d1";
+import { eq } from "drizzle-orm";
+import { accounts } from "~/db/schema";
+import { useState } from "react";
+
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const session = await requireAuth(request, context);
+  const db = drizzle(context.cloudflare.env.DB);
+
+  // 現在のユーザーに紐づくアカウント一覧を取得(認可制御)
+  const userAccounts = await db
+    .select()
+    .from(accounts)
+    .where(eq(accounts.userId, session.user.id));
+
+  return data({
+    user: session.user,
+    accounts: userAccounts.map((acc) => ({
+      id: acc.id,
+      providerId: acc.providerId,
+      accountId: acc.accountId,
+      createdAt: acc.createdAt,
+    })),
+  });
+}
+
+const PROVIDER_LABELS: Record<string, string> = {
+  google: "Google",
+  github: "GitHub",
+};
+
+const PROVIDER_ICONS: Record<string, string> = {
+  google: "🔵",
+  github: "🐙",
+};
+
+export default function Settings() {
+  const { user, accounts: userAccounts } = useLoaderData<typeof loader>();
+  const unlinkFetcher = useFetcher();
+  const deleteFetcher = useFetcher();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+
+  const linkedProviders = new Set(userAccounts.map((acc) => acc.providerId));
+  const availableProviders = ["google", "github"].filter(
+    (p) => !linkedProviders.has(p)
+  );
+
+  // 最後のアカウントかどうかを確認
+  const isLastAccount = userAccounts.length === 1;
+
+  return (
+    <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <h1 className="text-3xl font-bold mb-8">アカウント設定</h1>
+
+      {/* ユーザー情報 */}
+      <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 className="text-xl font-semibold mb-4">ユーザー情報</h2>
+        <div className="space-y-2">
+          <div>
+            <span className="text-gray-600">名前:</span>{" "}
+            <span className="font-medium">{user.name}</span>
+          </div>
+          <div>
+            <span className="text-gray-600">メール:</span>{" "}
+            <span className="font-medium">{user.email}</span>
+          </div>
+          {user.image && (
+            <div className="flex items-center gap-2">
+              <span className="text-gray-600">画像:</span>
+              <img
+                src={user.image}
+                alt={user.name}
+                className="w-10 h-10 rounded-full"
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 連携済みアカウント */}
+      <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 className="text-xl font-semibold mb-4">連携済みアカウント</h2>
+        {userAccounts.length === 0 ? (
+          <p className="text-gray-600">連携済みアカウントがありません。</p>
+        ) : (
+          <div className="space-y-3">
+            {userAccounts.map((account) => (
+              <div
+                key={account.id}
+                className="flex items-center justify-between p-4 border rounded-lg"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">
+                    {PROVIDER_ICONS[account.providerId] || "🔗"}
+                  </span>
+                  <div>
+                    <div className="font-medium">
+                      {PROVIDER_LABELS[account.providerId] ||
+                        account.providerId}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      ID: {account.accountId}
+                    </div>
+                  </div>
+                </div>
+                <unlinkFetcher.Form method="post" action="/api/account/unlink">
+                  <input type="hidden" name="accountId" value={account.id} />
+                  <button
+                    type="submit"
+                    disabled={
+                      isLastAccount || unlinkFetcher.state === "submitting"
+                    }
+                    className="px-4 py-2 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={
+                      isLastAccount
+                        ? "最後のアカウントは削除できません"
+                        : "連携を解除"
+                    }
+                  >
+                    {unlinkFetcher.state === "submitting"
+                      ? "解除中..."
+                      : "連携解除"}
+                  </button>
+                </unlinkFetcher.Form>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 新規アカウント連携 */}
+      {availableProviders.length > 0 && (
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <h2 className="text-xl font-semibold mb-4">新規アカウント連携</h2>
+          <div className="space-y-3">
+            {availableProviders.map((provider) => (
+              <a
+                key={provider}
+                href={`/api/auth/signin/${provider}?callbackURL=${encodeURIComponent("/settings")}`}
+                className="flex items-center gap-3 p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <span className="text-2xl">
+                  {PROVIDER_ICONS[provider] || "🔗"}
+                </span>
+                <div>
+                  <div className="font-medium">
+                    {PROVIDER_LABELS[provider] || provider}で連携
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    {PROVIDER_LABELS[provider] || provider}
+                    アカウントと連携します
+                  </div>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* アカウント削除 */}
+      <div className="bg-red-50 border-2 border-red-200 rounded-lg p-6">
+        <h2 className="text-xl font-semibold text-red-900 mb-4">危険な操作</h2>
+        <p className="text-red-800 mb-4">
+          アカウントを削除すると、すべてのブックマーク、カテゴリ、設定が完全に削除されます。この操作は取り消せません。
+        </p>
+
+        {!showDeleteConfirm ? (
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+          >
+            アカウントを削除
+          </button>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-red-900 mb-2">
+                確認のため「削除する」と入力してください
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                className="w-full px-3 py-2 border border-red-300 rounded focus:outline-none focus:ring-2 focus:ring-red-500"
+                placeholder="削除する"
+              />
+            </div>
+            <div className="flex gap-3">
+              <deleteFetcher.Form method="post" action="/api/account/delete">
+                <button
+                  type="submit"
+                  disabled={
+                    deleteConfirmText !== "削除する" ||
+                    deleteFetcher.state === "submitting"
+                  }
+                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {deleteFetcher.state === "submitting"
+                    ? "削除中..."
+                    : "完全に削除"}
+                </button>
+              </deleteFetcher.Form>
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setDeleteConfirmText("");
+                }}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

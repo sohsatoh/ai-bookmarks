@@ -5,50 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1767426347230,
-      "tag": "0000_chemical_wendell_vaughn",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1767426400000,
-      "tag": "0001_add_starred",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1767426400001,
-      "tag": "0002_add_read_status_and_archive",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1767490004279,
-      "tag": "0003_clumsy_the_executioner",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1767491891634,
-      "tag": "0004_graceful_punisher",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1767494954157,
-      "tag": "0005_warm_kree",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "6",
-      "when": 1767503414408,
-      "tag": "0006_crazy_paibok",
+      "when": 1767505370934,
+      "tag": "0000_thick_hellfire_club",
       "breakpoints": true
     }
   ]

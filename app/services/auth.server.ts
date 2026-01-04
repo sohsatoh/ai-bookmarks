@@ -77,17 +77,16 @@ export function createAuth(context: AppLoadContext) {
       },
     },
 
-    // アカウント連携設定（セキュリティ重視）
+    // アカウント連携設定
     account: {
       accountLinking: {
-        // メールアドレスによる自動アカウント統合を無効化
-        // セキュリティ理由: https://zenn.dev/ritou/articles/ca7be3f329e68f
-        // - メールアドレスは変更可能でリサイクルされる可能性がある
-        // - Pre-hijacking攻撃のリスクを回避
-        // - OAuth ProviderのユーザーID（accountId）のみで紐付けを管理
-        enabled: false,
-        trustedProviders: [], // 自動統合を行わない
-        allowDifferentEmails: false, // 異なるメールアドレスでの統合を禁止
+        // 同じメールアドレスでの自動アカウント統合を許可
+        // OAuth認証の場合、ユーザーが意図せず複数のプロバイダーを
+        // 使用することがあるため、UX向上のため有効化
+        enabled: true,
+        // すべてのOAuthプロバイダーを信頼する
+        // (Google, GitHubともにメール検証を行っている)
+        trustedProviders: ["google", "github"],
       },
     },
 

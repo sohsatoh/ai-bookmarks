@@ -28,7 +28,7 @@ export const AI_CONFIG = {
 export const SCRAPER_CONFIG = {
   /** User-Agent文字列 */
   USER_AGENT:
-    "Mozilla/5.0 (compatible; BookmarkBot/1.0; +https://example.com/bot)" as const,
+    "Mozilla/5.0 (compatible; BookmarkBot/1.0; +https://bookmarks.satoh.dev/bot)" as const,
   /** フェッチタイムアウト（ミリ秒） */
   FETCH_TIMEOUT_MS: 10000,
   /** 最大コンテンツサイズ（バイト）: 5MB */
@@ -77,6 +77,14 @@ export const RATE_LIMIT_CONFIG = {
   /** 一般的な変更操作（ユーザーベース）: 60回/1分 */
   MUTATION_USER_MAX_REQUESTS: 60,
   MUTATION_USER_WINDOW_MS: 60 * 1000,
+
+  // ファイルアップロード
+  /** ファイルアップロード（IPベース）: 5回/1分 */
+  FILE_UPLOAD_IP_MAX_REQUESTS: 5,
+  FILE_UPLOAD_IP_WINDOW_MS: 60 * 1000,
+  /** ファイルアップロード（ユーザーベース）: 10回/1分 */
+  FILE_UPLOAD_USER_MAX_REQUESTS: 10,
+  FILE_UPLOAD_USER_WINDOW_MS: 60 * 1000,
 } as const;
 
 // ==================================================
@@ -98,6 +106,74 @@ export const SECURITY_CONFIG = {
     /^fc00:/, // IPv6 プライベート
     /^fe80:/, // IPv6 リンクローカル
   ] as const,
+} as const;
+
+// ==================================================
+// ファイル関連の設定
+// ==================================================
+export const FILE_CONFIG = {
+  /** 最大ファイルサイズ（バイト）: 5MB */
+  MAX_FILE_SIZE_BYTES: 5 * 1024 * 1024,
+  /** 通常ユーザーの最大ファイル数 */
+  MAX_FILES_PER_USER: 5,
+  /** 管理者の最大ファイル数（無制限） */
+  MAX_FILES_PER_ADMIN: Number.POSITIVE_INFINITY,
+  /** ファイル名の最大文字数 */
+  MAX_FILENAME_LENGTH: 255,
+  /** 許可されるMIMEタイプ */
+  ALLOWED_MIME_TYPES: [
+    // ドキュメント
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    // テキスト
+    "text/plain",
+    "text/markdown",
+    "text/csv",
+    "text/html",
+    "text/css",
+    "text/javascript",
+    "application/json",
+    "application/xml",
+    // 画像
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "image/svg+xml",
+    // 動画
+    "video/mp4",
+    "video/quicktime",
+    "video/webm",
+    "video/x-msvideo",
+    "video/x-matroska",
+    // その他
+    "application/zip",
+  ] as const,
+  /** 拒否する拡張子（実行可能ファイル等） */
+  BLOCKED_EXTENSIONS: [
+    ".exe",
+    ".dll",
+    ".bat",
+    ".cmd",
+    ".com",
+    ".scr",
+    ".vbs",
+    ".js", // サーバー側では許可するがブラウザ実行を防ぐ
+    ".jar",
+    ".app",
+    ".deb",
+    ".rpm",
+    ".sh",
+    ".bash",
+    ".ps1",
+  ] as const,
+  /** AI分析用の最大テキスト抽出サイズ（文字数） */
+  MAX_AI_ANALYSIS_TEXT_LENGTH: 3000,
 } as const;
 
 // ==================================================

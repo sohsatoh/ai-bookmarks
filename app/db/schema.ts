@@ -154,12 +154,65 @@ export const userBookmarks = sqliteTable("user_bookmarks", {
     .$defaultFn(() => new Date()),
 });
 
+// ファイル専用カテゴリテーブル（Webサイトとは別管理）
+export const fileCategories = sqliteTable("file_categories", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull().unique(), // カテゴリ名（ユニーク）
+  parentId: integer("parent_id").references(
+    (): AnySQLiteColumn => fileCategories.id
+  ), // 親カテゴリID（nullなら大カテゴリ）
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+// ユーザーファイルテーブル（R2ストレージのメタデータ管理）
+export const files = sqliteTable("files", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }), // ユーザーIDで分離
+  originalFilename: text("original_filename").notNull(), // オリジナルファイル名
+  sanitizedFilename: text("sanitized_filename").notNull(), // サニタイズ後のファイル名
+  r2Key: text("r2_key").notNull().unique(), // R2オブジェクトキー（ユニーク）
+  mimeType: text("mime_type").notNull(), // MIMEタイプ
+  fileSize: integer("file_size").notNull(), // ファイルサイズ（バイト）
+  sha256Hash: text("sha256_hash").notNull(), // SHA-256ハッシュ（整合性検証用）
+  title: text("title"), // AI生成タイトル
+  description: text("description"), // AI生成説明
+  majorCategoryId: integer("major_category_id").references(
+    () => fileCategories.id
+  ), // AI分類（大カテゴリ）- ファイル専用カテゴリ
+  minorCategoryId: integer("minor_category_id").references(
+    () => fileCategories.id
+  ), // AI分類（小カテゴリ）- ファイル専用カテゴリ
+  aiAnalysisStatus: text("ai_analysis_status", {
+    enum: ["pending", "completed", "failed"],
+  })
+    .notNull()
+    .default("pending"), // AI分析ステータス
+  aiAnalysisError: text("ai_analysis_error"), // AI分析エラーメッセージ
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
 export type Category = typeof categories.$inferSelect;
 export type NewCategory = typeof categories.$inferInsert;
+export type FileCategory = typeof fileCategories.$inferSelect;
+export type NewFileCategory = typeof fileCategories.$inferInsert;
 export type Url = typeof urls.$inferSelect;
 export type NewUrl = typeof urls.$inferInsert;
 export type UserBookmark = typeof userBookmarks.$inferSelect;
 export type NewUserBookmark = typeof userBookmarks.$inferInsert;
+export type File = typeof files.$inferSelect;
+export type NewFile = typeof files.$inferInsert;
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Session = typeof sessions.$inferSelect;

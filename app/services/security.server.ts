@@ -259,3 +259,223 @@ export class RateLimiter {
     this.requests.delete(identifier);
   }
 }
+
+/**
+ * SimpleRateLimiter（RateLimiterのエイリアス）
+ */
+export class SimpleRateLimiter extends RateLimiter {
+  constructor(maxRequests: number = 10, windowMs: number = 60000) {
+    super(maxRequests, windowMs);
+  }
+
+  check(identifier: string): { allowed: boolean; remaining: number } {
+    return this.checkLimit(identifier);
+  }
+}
+
+/**
+ * ファイルセキュリティ検証
+ */
+
+import { FILE_CONFIG } from "~/constants";
+
+/**
+ * ファイル名をサニタイズ（パストラバーサル、特殊文字除去）
+ */
+export function sanitizeFilename(filename: string): string {
+  if (!filename) return "unnamed";
+
+  return (
+    filename
+      // パストラバーサル対策
+      .replaceAll(/\.\./g, "")
+      .replaceAll(/[/\\]/g, "_")
+      // 特殊文字を除去（英数字、ハイフン、アンダースコア、ドット、日本語のみ許可）
+      .replaceAll(/[^\w\-.\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/g, "_")
+      // 連続するドットを1つに
+      .replaceAll(/\.{2,}/g, ".")
+      // 先頭のドットを除去（隠しファイル防止）
+      .replace(/^\.+/, "")
+      // 長さ制限
+      .slice(0, FILE_CONFIG.MAX_FILENAME_LENGTH)
+      .trim() || "unnamed"
+  );
+}
+
+/**
+ * ファイル拡張子を取得
+ */
+export function getFileExtension(filename: string): string {
+  const parts = filename.split(".");
+  return parts.length > 1 ? `.${parts.pop()?.toLowerCase() || ""}` : "";
+}
+
+/**
+ * MIMEタイプが許可されているか検証
+ */
+export function isAllowedMimeType(mimeType: string): boolean {
+  return FILE_CONFIG.ALLOWED_MIME_TYPES.includes(
+    mimeType as (typeof FILE_CONFIG.ALLOWED_MIME_TYPES)[number]
+  );
+}
+
+/**
+ * ファイル拡張子がブロックされているか検証
+ */
+export function isBlockedExtension(filename: string): boolean {
+  const ext = getFileExtension(filename);
+  return FILE_CONFIG.BLOCKED_EXTENSIONS.includes(
+    ext as (typeof FILE_CONFIG.BLOCKED_EXTENSIONS)[number]
+  );
+}
+
+/**
+ * ファイルサイズが制限内か検証
+ */
+export function isFileSizeValid(size: number): boolean {
+  return size > 0 && size <= FILE_CONFIG.MAX_FILE_SIZE_BYTES;
+}
+
+/**
+ * ファイルのmagic numberを検証（MIMEタイプ偽装対策）
+ */
+export function verifyFileSignature(
+  buffer: ArrayBuffer,
+  expectedMimeType: string
+): boolean {
+  const bytes = new Uint8Array(buffer.slice(0, 16));
+
+  // 主要なファイル形式のmagic number定義
+  const signatures: Record<string, number[][]> = {
+    "application/pdf": [[0x25, 0x50, 0x44, 0x46]], // %PDF
+    "image/jpeg": [
+      [0xff, 0xd8, 0xff],
+      [0xff, 0xd8, 0xff, 0xe0],
+      [0xff, 0xd8, 0xff, 0xe1],
+    ],
+    "image/png": [[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]], // PNG signature
+    "image/gif": [
+      [0x47, 0x49, 0x46, 0x38, 0x37, 0x61], // GIF87a
+      [0x47, 0x49, 0x46, 0x38, 0x39, 0x61], // GIF89a
+    ],
+    "image/webp": [[0x52, 0x49, 0x46, 0x46]], // RIFF (WebP)
+    "application/zip": [
+      [0x50, 0x4b, 0x03, 0x04], // ZIP
+      [0x50, 0x4b, 0x05, 0x06], // ZIP empty
+      [0x50, 0x4b, 0x07, 0x08], // ZIP spanned
+    ],
+    // Office形式（ZIPベース）
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [
+      [0x50, 0x4b, 0x03, 0x04],
+    ],
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [
+      [0x50, 0x4b, 0x03, 0x04],
+    ],
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+      [[0x50, 0x4b, 0x03, 0x04]],
+    // 動画形式
+    "video/mp4": [
+      [0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70], // ftyp (24バイトオフセット)
+      [0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70], // ftyp (32バイトオフセット)
+      [0x66, 0x74, 0x79, 0x70], // ftyp (簡易版)
+    ],
+    "video/quicktime": [
+      [0x00, 0x00, 0x00, 0x14, 0x66, 0x74, 0x79, 0x70], // ftyp (20バイトオフセット)
+      [0x66, 0x74, 0x79, 0x70], // ftyp (簡易版)
+    ],
+    "video/webm": [[0x1a, 0x45, 0xdf, 0xa3]], // EBML (WebM/Matroska)
+    "video/x-msvideo": [[0x52, 0x49, 0x46, 0x46]], // RIFF (AVI)
+    "video/x-matroska": [[0x1a, 0x45, 0xdf, 0xa3]], // EBML (Matroska)
+    // テキスト系はmagic number検証スキップ
+    "text/plain": [],
+    "text/markdown": [],
+    "text/csv": [],
+    "text/html": [],
+    "application/json": [],
+  };
+
+  const expectedSignatures = signatures[expectedMimeType];
+  if (!expectedSignatures || expectedSignatures.length === 0) {
+    return true; // テキスト系はスキップ
+  }
+
+  return expectedSignatures.some((signature) =>
+    signature.every((byte, index) => bytes[index] === byte)
+  );
+}
+
+/**
+ * ファイルのSHA-256ハッシュを計算
+ */
+export async function calculateFileHash(buffer: ArrayBuffer): Promise<string> {
+  const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * 包括的なファイル検証
+ */
+export async function validateFile(
+  file:
+    | File
+    | {
+        name: string;
+        type: string;
+        size: number;
+        arrayBuffer: () => Promise<ArrayBuffer>;
+      }
+): Promise<{
+  valid: boolean;
+  error?: string;
+  sanitizedFilename?: string;
+  hash?: string;
+}> {
+  // ファイルサイズ検証
+  if (!isFileSizeValid(file.size)) {
+    return {
+      valid: false,
+      error: `ファイルサイズは${FILE_CONFIG.MAX_FILE_SIZE_BYTES / 1024 / 1024}MB以下にしてください`,
+    };
+  }
+
+  // ファイル名サニタイズ
+  const sanitizedFilename = sanitizeFilename(file.name);
+
+  // 拡張子ブロックチェック
+  if (isBlockedExtension(sanitizedFilename)) {
+    return {
+      valid: false,
+      error:
+        "このファイル形式はセキュリティ上の理由によりアップロードできません",
+    };
+  }
+
+  // MIMEタイプ検証
+  if (!isAllowedMimeType(file.type)) {
+    return {
+      valid: false,
+      error: "このファイル形式はサポートされていません",
+    };
+  }
+
+  // ファイル内容の読み込み
+  const buffer = await file.arrayBuffer();
+
+  // Magic number検証（MIMEタイプ偽装対策）
+  if (!verifyFileSignature(buffer, file.type)) {
+    return {
+      valid: false,
+      error: "ファイル形式が正しくありません",
+    };
+  }
+
+  // SHA-256ハッシュ計算
+  const hash = await calculateFileHash(buffer);
+
+  return {
+    valid: true,
+    sanitizedFilename,
+    hash,
+  };
+}

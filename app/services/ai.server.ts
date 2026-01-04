@@ -245,3 +245,121 @@ export async function generateBookmarkMetadata(
     };
   }
 }
+
+/**
+ * ファイル内容をAIで分析
+ * - ファイルのテキスト内容からタイトル、説明、カテゴリを生成
+ * - 既存のファイル専用カテゴリとの類似性を考慮
+ */
+import type { AppLoadContext } from "react-router";
+import { drizzle } from "drizzle-orm/d1";
+import * as schema from "~/db/schema";
+import { fileCategories } from "~/db/schema";
+
+export async function analyzeFileContent(
+  fileText: string,
+  context: AppLoadContext
+): Promise<{
+  title: string;
+  description: string;
+  majorCategoryId: number | null;
+  minorCategoryId: number | null;
+}> {
+  const ai = context.cloudflare.env.AI as Ai;
+  const db = drizzle(context.cloudflare.env.DB, { schema });
+
+  try {
+    // ファイル専用カテゴリを取得
+    const allFileCategories = await db.select().from(fileCategories);
+
+    // カテゴリの階層構造を作成
+    const hierarchy: { major: string; minors: string[] }[] = [];
+    for (const majorCat of allFileCategories.filter((cat) => !cat.parentId)) {
+      const minors = allFileCategories
+        .filter((cat) => cat.parentId === majorCat.id)
+        .map((cat) => cat.name);
+      hierarchy.push({ major: majorCat.name, minors });
+    }
+
+    const sanitizedFileText = sanitizeForPrompt(
+      fileText,
+      AI_CONFIG.CONTENT_MAX_LENGTH
+    );
+
+    const hierarchyList = hierarchy
+      .map(
+        (item, i) => `${i + 1}. ${item.major}\n   - ${item.minors.join(", ")}`
+      )
+      .join("\n");
+
+    const systemPrompt = `あなたはファイル分析の専門家です。以下のファイル内容を分析して、適切なタイトル、説明、カテゴリを選択してください。
+
+【既存カテゴリの階層構造】
+以下の大カテゴリと小カテゴリの組み合わせから選択してください：
+${hierarchyList}
+
+【指示】
+1. ファイル内容を要約した適切なタイトルを生成してください（最大50文字）
+2. ファイルの内容を簡潔に説明してください（最大150文字）
+3. 上記の既存カテゴリから最も適切な大カテゴリと小カテゴリを選択してください
+4. 適切なカテゴリがない場合は「未分類」を選択してください
+
+【出力形式】
+必ず以下のJSON形式で出力してください：
+{"title":"ファイルのタイトル","description":"ファイルの説明","majorCategory":"大分類","minorCategory":"小分類"}`;
+
+    const userInput = `【ファイル内容】
+${sanitizedFileText}`;
+
+    const response = await ai.run(AI_CONFIG.MODEL_NAME, {
+      instructions: systemPrompt,
+      input: userInput,
+      max_tokens: AI_CONFIG.MAX_TOKENS,
+    });
+
+    if (
+      !response ||
+      typeof response !== "object" ||
+      !("response" in response)
+    ) {
+      throw new Error("AIからの応答が無効です");
+    }
+
+    const aiResponse = String(response.response).trim();
+    const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+
+    if (!jsonMatch) {
+      throw new Error("JSON形式の応答が見つかりませんでした");
+    }
+
+    const metadata = JSON.parse(jsonMatch[0]) as {
+      title: string;
+      description: string;
+      majorCategory: string;
+      minorCategory: string;
+    };
+
+    // ファイル専用カテゴリIDを取得
+    const majorCat = allFileCategories.find(
+      (cat) => cat.name === metadata.majorCategory && !cat.parentId
+    );
+    const minorCat = allFileCategories.find(
+      (cat) => cat.name === metadata.minorCategory && cat.parentId !== null
+    );
+
+    return {
+      title: metadata.title.trim().slice(0, 150),
+      description: metadata.description.trim().slice(0, 300),
+      majorCategoryId: majorCat?.id ?? null,
+      minorCategoryId: minorCat?.id ?? null,
+    };
+  } catch (error) {
+    console.error("[AI] File analysis failed:", error);
+    return {
+      title: "ファイル",
+      description: "AI分析に失敗しました",
+      majorCategoryId: null,
+      minorCategoryId: null,
+    };
+  }
+}

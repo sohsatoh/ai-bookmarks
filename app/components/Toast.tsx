@@ -22,29 +22,42 @@ export function ToastContainer({ toasts, onDismiss }: ToastProps) {
   );
 }
 
-function Toast({
+export function Toast({
   toast,
   onDismiss,
+  message,
+  type,
+  onClose,
 }: {
-  toast: ToastMessage;
-  onDismiss: (id: string) => void;
+  toast?: ToastMessage;
+  onDismiss?: (id: string) => void;
+  message?: string;
+  type?: "success" | "error" | "info" | "warning";
+  onClose?: () => void;
 }) {
+  // 新しいインターフェイス（message, type, onClose）をサポート
+  const toastId = toast?.id || "single-toast";
+  const toastType = toast?.type || type || "info";
+  const toastMessage = toast?.message || message || "";
+  const handleDismiss =
+    toast && onDismiss ? () => onDismiss(toast.id) : onClose;
+
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
     // エラー以外は5秒後に自動で消える
-    if (toast.type !== "error") {
+    if (toastType !== "error") {
       const timer = setTimeout(() => {
         setIsVisible(false);
-        setTimeout(() => onDismiss(toast.id), 300);
+        setTimeout(() => handleDismiss?.(), 300);
       }, 5000);
       return () => clearTimeout(timer);
     }
-  }, [toast.id, toast.type, onDismiss]);
+  }, [toastId, toastType, handleDismiss]);
 
   const handleClose = () => {
     setIsVisible(false);
-    setTimeout(() => onDismiss(toast.id), 300);
+    setTimeout(() => handleDismiss?.(), 300);
   };
 
   const bgColor = {
@@ -53,21 +66,21 @@ function Toast({
     error: "bg-white dark:bg-gray-800 border-red-200 dark:border-red-800",
     warning:
       "bg-white dark:bg-gray-800 border-yellow-200 dark:border-yellow-800",
-  }[toast.type];
+  }[toastType];
 
   const textColor = {
     info: "text-gray-900 dark:text-gray-100",
     success: "text-gray-900 dark:text-gray-100",
     error: "text-gray-900 dark:text-gray-100",
     warning: "text-gray-900 dark:text-gray-100",
-  }[toast.type];
+  }[toastType];
 
   const iconColor = {
     info: "text-blue-500 dark:text-blue-400",
     success: "text-green-500 dark:text-green-400",
     error: "text-red-500 dark:text-red-400",
     warning: "text-yellow-500 dark:text-yellow-400",
-  }[toast.type];
+  }[toastType];
 
   const icon = {
     info: (
@@ -134,7 +147,7 @@ function Toast({
         />
       </svg>
     ),
-  }[toast.type];
+  }[toastType];
 
   return (
     <div
@@ -142,14 +155,16 @@ function Toast({
         isVisible
           ? "opacity-100 translate-x-0 scale-100 animate-slide-in-right"
           : "opacity-0 translate-x-8 scale-95 animate-slide-out-right"
-      } ${toast.type === "error" ? "animate-shake" : ""}`}
+      } ${toastType === "error" ? "animate-shake" : ""}`}
     >
       <div className="flex items-start gap-4">
         <div className={`${iconColor} flex-shrink-0 mt-0.5`}>{icon}</div>
         <div className="flex-1 min-w-0">
-          <p className={`font-bold text-base ${textColor}`}>{toast.title}</p>
+          <p className={`font-bold text-base ${textColor}`}>
+            {toast?.title || toastType}
+          </p>
           <p className={`text-sm mt-1 ${textColor} opacity-80 break-words`}>
-            {toast.message}
+            {toastMessage}
           </p>
         </div>
         <button

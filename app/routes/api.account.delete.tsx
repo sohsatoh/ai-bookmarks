@@ -26,11 +26,19 @@ export async function action({ request, context }: Route.ActionArgs) {
     // セッション破棄（クッキー削除）
     await signOut(request, context);
 
-    // ログインページにリダイレクト
-    return redirect("/login");
+    // トップページにリダイレクト（削除成功メッセージ付き）
+    return redirect(
+      "/?message=" +
+        encodeURIComponent("アカウントを削除しました") +
+        "&type=success"
+    );
   } catch (error) {
     console.error("アカウント削除エラー:", error);
-    return redirect("/settings?error=delete_failed");
+    return redirect(
+      "/settings?message=" +
+        encodeURIComponent("アカウント削除に失敗しました") +
+        "&type=error"
+    );
   }
 }
 

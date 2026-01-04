@@ -18,8 +18,9 @@ import { useLoaderData, useFetcher, data } from "react-router";
 import type { Route } from "./+types/settings";
 import { requireAuth } from "~/services/auth.server";
 import { getAccountDb, getUserAccounts } from "~/services/account.server";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { authClient } from "~/lib/auth-client";
+import { ToastContainer, type ToastMessage } from "~/components/Toast";
 
 export async function loader({ request, context }: Route.LoaderArgs) {
   const session = await requireAuth(request, context);
@@ -27,6 +28,14 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 
   // 現在のユーザーに紐づくアカウント一覧を取得（認可制御）
   const userAccounts = await getUserAccounts(db, session.user.id);
+
+  // URLパラメータからメッセージを取得
+  const url = new URL(request.url);
+  const message = url.searchParams.get("message");
+  const messageType = url.searchParams.get("type") as
+    | "success"
+    | "error"
+    | null;
 
   return data({
     user: {
@@ -38,6 +47,8 @@ export async function loader({ request, context }: Route.LoaderArgs) {
       accountId: acc.accountId,
       createdAt: acc.createdAt,
     })),
+    message: message || null,
+    messageType: messageType || null,
   });
 }
 
@@ -52,11 +63,39 @@ const PROVIDER_ICONS: Record<string, string> = {
 };
 
 export default function Settings() {
-  const { user, accounts: userAccounts } = useLoaderData<typeof loader>();
+  const {
+    user,
+    accounts: userAccounts,
+    message,
+    messageType,
+  } = useLoaderData<typeof loader>();
   const unlinkFetcher = useFetcher();
   const deleteFetcher = useFetcher();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  // loaderからのメッセージを表示
+  useEffect(() => {
+    if (message && messageType) {
+      const toastId = Date.now().toString();
+      setToasts((prev) => [
+        ...prev,
+        {
+          id: toastId,
+          type: messageType,
+          title: messageType === "success" ? "成功" : "エラー",
+          message,
+        },
+      ]);
+      // URLからパラメータを削除
+      window.history.replaceState({}, "", "/settings");
+    }
+  }, [message, messageType]);
+
+  const handleDismissToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
 
   const linkedProviders = new Set(userAccounts.map((acc) => acc.providerId));
   const availableProviders = ["google", "github"].filter(
@@ -82,6 +121,7 @@ export default function Settings() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <ToastContainer toasts={toasts} onDismiss={handleDismissToast} />
       <div className="flex items-center gap-4 mb-8">
         <a
           href="/home"

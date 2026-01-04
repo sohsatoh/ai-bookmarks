@@ -1,9 +1,4 @@
-import {
-  Form,
-  useNavigation,
-  useRevalidator,
-  redirect,
-} from "react-router";
+import { Form, useNavigation, useRevalidator, redirect } from "react-router";
 import { useEffect, useState, useRef } from "react";
 import type { Route } from "./+types/home";
 import { getDb, getAllBookmarks, getAllCategories } from "~/services/db.server";

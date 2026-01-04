@@ -7,7 +7,7 @@
  * - 最後のアカウントは削除不可(ログイン不能防止)
  */
 
-import { redirect, data } from "react-router";
+import { redirect } from "react-router";
 import type { Route } from "./+types/api.account.unlink";
 import { requireAuth } from "~/services/auth.server";
 import { getAccountDb, unlinkAccount } from "~/services/account.server";
@@ -25,18 +25,22 @@ export async function action({ request, context }: Route.ActionArgs) {
     const result = await unlinkAccount(db, session.user.id, accountId);
 
     if (!result.success) {
-      return data(
-        { error: result.error },
-        { status: result.error?.includes("アクセス権限") ? 403 : 400 }
+      return redirect(
+        `/settings?message=${encodeURIComponent(result.error || "エラーが発生しました")}&type=error`
       );
     }
 
-    return redirect("/settings");
+    return redirect(
+      "/settings?message=" +
+        encodeURIComponent("アカウント連携を解除しました") +
+        "&type=success"
+    );
   } catch (error) {
     console.error("アカウント連携解除エラー:", error);
-    return data(
-      { error: "アカウント連携の解除に失敗しました" },
-      { status: 500 }
+    return redirect(
+      "/settings?message=" +
+        encodeURIComponent("アカウント連携の解除に失敗しました") +
+        "&type=error"
     );
   }
 }

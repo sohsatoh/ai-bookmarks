@@ -10,9 +10,11 @@
  * - 既にログイン済みの場合はホームにリダイレクト
  */
 
-import { Link, redirect } from "react-router";
+import { Link, redirect, useLoaderData, data } from "react-router";
 import type { Route } from "./+types/index";
 import { getSession } from "~/services/auth.server";
+import { useState, useEffect } from "react";
+import { ToastContainer, type ToastMessage } from "~/components/Toast";
 
 export function meta(_args: Route.MetaArgs) {
   return [
@@ -32,12 +34,49 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     return redirect("/home");
   }
 
-  return {};
+  // URLパラメータからメッセージを取得
+  const url = new URL(request.url);
+  const message = url.searchParams.get("message");
+  const messageType = url.searchParams.get("type") as
+    | "success"
+    | "error"
+    | null;
+
+  return data({
+    message: message || null,
+    messageType: messageType || null,
+  });
 }
 
 export default function Index() {
+  const { message, messageType } = useLoaderData<typeof loader>();
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  // loaderからのメッセージを表示
+  useEffect(() => {
+    if (message && messageType) {
+      const toastId = Date.now().toString();
+      setToasts((prev) => [
+        ...prev,
+        {
+          id: toastId,
+          type: messageType,
+          title: messageType === "success" ? "成功" : "エラー",
+          message,
+        },
+      ]);
+      // URLからパラメータを削除
+      window.history.replaceState({}, "", "/");
+    }
+  }, [message, messageType]);
+
+  const handleDismissToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <ToastContainer toasts={toasts} onDismiss={handleDismissToast} />
       {/* ヘッダー */}
       <header className="bg-white shadow-sm">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">

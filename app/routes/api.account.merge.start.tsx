@@ -10,18 +10,8 @@
  */
 
 import type { Route } from "./+types/api.account.merge.start";
-import { requireAuth } from "~/services/auth.server";
-import { generateMergeToken } from "~/services/account.server";
 
-const ALLOWED_PROVIDERS = ["google", "github"] as const;
-type Provider = (typeof ALLOWED_PROVIDERS)[number];
-
-function isValidProvider(provider: string): provider is Provider {
-  return ALLOWED_PROVIDERS.includes(provider as Provider);
-}
-
-export async function action({ request, context }: Route.ActionArgs) {
+export async function action({ request: _request, context: _context }: Route.ActionArgs) {
   // セキュリティ上の理由により一時的に無効化
   throw new Response("この機能は現在利用できません", { status: 403 });
-
 }

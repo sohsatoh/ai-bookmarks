@@ -54,7 +54,8 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     messageType = "error";
     switch (errorParam) {
       case "merge_token_invalid":
-        message = "マージトークンが無効または期限切れです。もう一度お試しください。";
+        message =
+          "マージトークンが無効または期限切れです。もう一度お試しください。";
         break;
       case "merge_session_invalid":
         message = "セッションが無効です。再度ログインしてください。";
@@ -66,7 +67,10 @@ export async function loader({ request, context }: Route.LoaderArgs) {
         message = errorParam;
     }
   } else {
-    const typeParam = url.searchParams.get("type") as "success" | "error" | null;
+    const typeParam = url.searchParams.get("type") as
+      | "success"
+      | "error"
+      | null;
     message = url.searchParams.get("message");
     messageType = typeParam;
   }
@@ -274,8 +278,8 @@ export default function Settings() {
         </div>
       )}
 
-      {/* アカウントマージ - セキュリティ上の理由により一時的に無効化 */}
-      {/* <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-6 mb-6">
+      {/* アカウントマージ - セキュリティ上の理由により一時的に無効化
+      <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-6 mb-6">
         <h2 className="text-xl font-semibold text-yellow-900 mb-4">
           別のアカウントを統合
         </h2>
@@ -311,7 +315,8 @@ export default function Settings() {
             </form>
           ))}
         </div>
-      </div> */
+      </div>
+      */}
 
       {/* アカウント削除 */}
       <div className="bg-red-50 border-2 border-red-200 rounded-lg p-6">

@@ -121,6 +121,27 @@ export async function getUrlMetadata(
 }
 
 /**
+ * URLマスターを更新（AI生成メタデータで上書き）
+ */
+export async function updateUrl(
+  db: ReturnType<typeof getDb>,
+  urlId: number,
+  data: {
+    description?: string;
+    majorCategoryId?: number;
+    minorCategoryId?: number;
+  }
+): Promise<void> {
+  await db
+    .update(urls)
+    .set({
+      ...data,
+      updatedAt: new Date(),
+    })
+    .where(eq(urls.id, urlId));
+}
+
+/**
  * ブックマークを作成（ユーザー固有）
  */
 export async function createUserBookmark(

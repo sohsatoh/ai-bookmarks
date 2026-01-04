@@ -10,6 +10,7 @@ import {
   getUrlMetadata,
   getOrCreateUrl,
   createUserBookmark,
+  updateUrl,
 } from "~/services/db.server";
 import { generateBookmarkMetadata } from "~/services/ai.server";
 import { fetchPageMetadata, validateUrl } from "~/services/scraper.server";
@@ -93,29 +94,68 @@ export async function handleAddBookmark(
     // ページメタデータ取得
     const { title, description, content } = await fetchPageMetadata(url);
 
-    // バックグラウンドでAI処理とDB保存を実行
-    ctx.waitUntil(
-      (async () => {
-        try {
-          // eslint-disable-next-line no-console
-          console.log("[Background] Starting AI processing for:", url);
+    // 既存URLメタデータをチェック
+    const existingUrlData = await getUrlMetadata(db as any, url);
 
-          // 既存URLメタデータをチェック
-          const existingUrlData = await getUrlMetadata(db as any, url);
+    let urlId: number;
+    let needsAiProcessing = false;
 
-          let urlId: number;
+    if (existingUrlData) {
+      // 既存URLがある場合、そのメタデータを使用
+      // eslint-disable-next-line no-console
+      console.log("[Sync] Existing URL found, skipping AI processing");
+      urlId = existingUrlData.id;
+    } else {
+      // 新規URLの場合、デフォルトカテゴリで即座に保存
+      // eslint-disable-next-line no-console
+      console.log("[Sync] New URL, creating with default category");
 
-          if (existingUrlData) {
-            // 既存URLがある場合、そのメタデータを使用
+      // デフォルトカテゴリを取得または作成
+      const majorCategoryId = await getOrCreateCategory(
+        db as any,
+        "未分類",
+        "major"
+      );
+      const minorCategoryId = await getOrCreateCategory(
+        db as any,
+        "その他",
+        "minor",
+        majorCategoryId
+      );
+
+      // URLマスター作成（AI処理前のデフォルト値）
+      const urlResult = await getOrCreateUrl(db as any, {
+        url,
+        title,
+        description: description || "AI分析中...",
+        majorCategoryId,
+        minorCategoryId,
+      });
+      urlId = urlResult.id;
+      needsAiProcessing = true;
+    }
+
+    // ユーザーブックマーク作成（即座に実行）
+    await createUserBookmark(db as any, {
+      userId,
+      urlId,
+    });
+
+    // eslint-disable-next-line no-console
+    console.log("[Sync] Bookmark saved successfully");
+
+    // AI処理が必要な場合、バックグラウンドで実行
+    if (needsAiProcessing) {
+      ctx.waitUntil(
+        (async () => {
+          try {
             // eslint-disable-next-line no-console
-            console.log(
-              "[Background] Existing URL found, skipping AI processing"
-            );
-            urlId = existingUrlData.id;
-          } else {
-            // 新規URLの場合、AIでメタデータ生成
+            console.log("[Background] Starting AI processing for:", url);
+
+            // 既存カテゴリを取得
             const existingCategories = await getExistingCategories(db as any);
 
+            // AIでメタデータ生成
             const metadata = await generateBookmarkMetadata(
               ai as any,
               url,
@@ -126,7 +166,7 @@ export async function handleAddBookmark(
             );
 
             // eslint-disable-next-line no-console
-            console.log("[Background] AI processing completed, saving to DB");
+            console.log("[Background] AI processing completed, updating DB");
 
             // カテゴリを取得または作成
             const majorCategoryId = await getOrCreateCategory(
@@ -141,39 +181,32 @@ export async function handleAddBookmark(
               majorCategoryId
             );
 
-            // URLマスター作成
-            const urlResult = await getOrCreateUrl(db as any, {
-              url,
-              title,
+            // URLマスターを更新（AI生成メタデータで上書き）
+            await updateUrl(db as any, urlId, {
               description: metadata.description,
               majorCategoryId,
               minorCategoryId,
             });
-            urlId = urlResult.id;
+
+            // eslint-disable-next-line no-console
+            console.log("[Background] AI metadata updated successfully");
+          } catch (error) {
+            console.error("[Background] Failed to process AI metadata:", error);
           }
-
-          // ユーザーブックマーク作成
-          await createUserBookmark(db as any, {
-            userId,
-            urlId,
-          });
-
-          // eslint-disable-next-line no-console
-          console.log("[Background] Bookmark saved successfully");
-        } catch (error) {
-          console.error("[Background] Failed to process bookmark:", error);
-        }
-      })()
-    );
+        })()
+      );
+    }
 
     // すぐにレスポンスを返す
     return {
       success: true,
-      processing: true,
+      processing: needsAiProcessing,
       toast: {
-        type: "info",
-        title: "処理中",
-        message: `${title} を追加しています...`,
+        type: "success",
+        title: needsAiProcessing ? "追加しました" : "追加しました",
+        message: needsAiProcessing
+          ? `${title} を追加しました。AI分析は続行中です。`
+          : `${title} を追加しました。`,
       },
     };
   } catch (error) {

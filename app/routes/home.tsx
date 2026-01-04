@@ -20,6 +20,7 @@ import { fetchPageMetadata, validateUrl } from "~/services/scraper.server";
 import { checkRateLimit, getClientIp } from "~/services/rate-limit.server";
 import { initBroadcastChannel, broadcast, closeBroadcastChannel, type BroadcastMessage } from "~/utils/broadcast";
 import { ToastContainer, type ToastMessage } from "~/components/Toast";
+import { Footer } from "~/components/Footer";
 import { UI_CONFIG } from "~/constants";
 
 export function meta(_args: Route.MetaArgs) {
@@ -1747,6 +1748,9 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
           </div>
         </div>
       )}
+      
+      {/* フッター */}
+      <Footer />
     </div>
   );
 }

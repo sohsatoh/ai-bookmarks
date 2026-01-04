@@ -30,6 +30,7 @@ export function initBroadcastChannel(
   channel = new BroadcastChannel("ai-bookmarks-sync");
 
   channel.onmessage = (event) => {
+    // eslint-disable-next-line no-console
     console.log("Received broadcast message:", event.data);
     onMessage(event.data as BroadcastMessage);
   };
@@ -44,6 +45,7 @@ export function broadcast(message: BroadcastMessage): void {
     return;
   }
 
+  // eslint-disable-next-line no-console
   console.log("Broadcasting message:", message);
   channel.postMessage(message);
 }

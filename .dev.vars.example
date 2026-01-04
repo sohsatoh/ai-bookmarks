@@ -1,0 +1,22 @@
+# Cloudflare Workers用の開発環境変数
+# 
+# 推奨: 1Password Environmentsを使用してこのファイルを安全に管理
+# 詳細はREADME.mdの「環境変数の設定」セクションを参照
+#
+# 代替方法: このファイルを.dev.varsにコピーして実際の値を設定
+# コマンド: cp .dev.vars.example .dev.vars
+
+# Better Auth Secret (32文字以上のランダムな文字列)
+# 生成方法: openssl rand -base64 32
+BETTER_AUTH_SECRET=your-secret-key-here-replace-with-random-string
+
+# Better Auth URL (開発環境)
+BETTER_AUTH_URL=http://localhost:5173
+
+# Google OAuth
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+
+# GitHub OAuth
+GITHUB_CLIENT_ID=your-github-client-id
+GITHUB_CLIENT_SECRET=your-github-client-secret

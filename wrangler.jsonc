@@ -6,6 +6,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "ai-bookmarks",
   "compatibility_date": "2025-04-04",
+  "compatibility_flags": ["nodejs_compat"],
   "main": "./workers/app.ts",
   "routes": [
     {
@@ -25,7 +26,6 @@
       "binding": "DB",
       "database_name": "ai-bookmarks-db",
       "database_id": "43e72daa-1009-4473-bc47-893e5575c5c4",
-      "remote": true,
     },
   ],
   /**
@@ -35,6 +35,14 @@
   "ai": {
     "binding": "AI",
   },
+  /**
+   * Environment Variables
+   * 環境変数はセキュリティのため以下で管理:
+   * - ローカル開発: .dev.vars ファイル
+   * - 本番環境: wrangler secret put コマンド
+   *
+   * 必要な環境変数は .dev.vars.example を参照してください
+   */
   /**
    * Smart Placement
    * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement

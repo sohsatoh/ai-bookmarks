@@ -1,23 +1,7 @@
-import { Form, useNavigation, useRevalidator, useSubmit } from "react-router";
+import { Form, useNavigation, useRevalidator, redirect } from "react-router";
 import { useEffect, useState, useRef } from "react";
 import type { Route } from "./+types/home";
-import {
-  getDb,
-  getAllBookmarks,
-  createBookmark,
-  getOrCreateCategory,
-  getExistingCategories,
-  getAllCategories,
-  checkDuplicateUrl,
-  deleteBookmark,
-  updateBookmarkOrder,
-  updateCategoryOrder,
-} from "~/services/db.server";
-import { bookmarks } from "~/db/schema";
-import { eq } from "drizzle-orm";
-import { generateBookmarkMetadata } from "~/services/ai.server";
-import { fetchPageMetadata, validateUrl } from "~/services/scraper.server";
-import { checkRateLimit, getClientIp } from "~/services/rate-limit.server";
+import { getDb, getAllBookmarks, getAllCategories } from "~/services/db.server";
 import {
   initBroadcastChannel,
   broadcast,
@@ -25,25 +9,55 @@ import {
   type BroadcastMessage,
 } from "~/utils/broadcast";
 import { ToastContainer, type ToastMessage } from "~/components/Toast";
+import { Header } from "~/components/Header";
 import { Footer } from "~/components/Footer";
+import { BookmarkCardFull } from "~/components/BookmarkCardFull";
+import { CategoryHeader } from "~/components/CategoryHeader";
 import { UI_CONFIG } from "~/constants";
-import type { BookmarkWithCategories } from "~/types/bookmark";
+import { getSession, hasAdminRole } from "~/services/auth.server";
+import {
+  getClientIp,
+  checkMutationRateLimit,
+} from "~/services/rate-limit.server";
+import { useDragAndDrop } from "~/hooks/useDragAndDrop";
+import {
+  handleToggleStar,
+  handleToggleReadStatus,
+  handleToggleArchive,
+} from "~/actions/toggle-actions.server";
+import {
+  handleDelete,
+  handleEdit,
+  handleRefresh,
+} from "~/actions/bookmark-crud-actions.server";
+import {
+  handleRefreshAll,
+  handleReorderBookmarks,
+  handleReorderCategories,
+} from "~/actions/batch-actions.server";
+import { handleAddBookmark } from "~/actions/add-bookmark-action.server";
 
 export function meta(_args: Route.MetaArgs) {
   return [
     { title: "AI Bookmarks - 自動カテゴリ分類ブックマーク" },
     {
       name: "description",
-      content: "Cloudflare Workers AIによる自動カテゴリ分類ブックマーク管理",
+      content: "AIによる自動カテゴリ分類ブックマーク管理",
     },
   ];
 }
 
 export async function loader({ context, request }: Route.LoaderArgs) {
+  // 認証チェック
+  const session = await getSession(request, context);
+  if (!session?.user) {
+    return redirect("/");
+  }
+
   const db = getDb(context.cloudflare.env.DB);
 
   const [bookmarksByCategory, allCategories] = await Promise.all([
-    getAllBookmarks(db),
+    getAllBookmarks(db, session.user.id),
     getAllCategories(db),
   ]);
 
@@ -58,656 +72,135 @@ export async function loader({ context, request }: Route.LoaderArgs) {
     bookmarksByCategory,
     starredBookmarks,
     allCategories,
+    user: session.user,
+    isAdmin: hasAdminRole(session),
   };
 }
 
 export async function action({ request, context }: Route.ActionArgs) {
+  // 認証チェック（必須）
+  const session = await getSession(request, context);
+  if (!session?.user) {
+    return Response.json({ error: "認証が必要です" }, { status: 401 });
+  }
+
   // CSRF対策: POSTリクエストのみ許可
   if (request.method !== "POST") {
     return { error: "無効なリクエストメソッドです" };
   }
 
-  // CSRF対策: Originヘッダーチェック
+  // CSRF対策: Originヘッダーチェック（開発環境では緩和）
   const origin = request.headers.get("Origin");
   const host = request.headers.get("Host");
+  const isDevelopment =
+    context.cloudflare.env.BETTER_AUTH_URL?.includes("localhost") ||
+    context.cloudflare.env.BETTER_AUTH_URL?.includes("127.0.0.1");
+
   if (origin && host && new URL(origin).host !== host) {
-    return { error: "不正なリクエスト元です" };
+    // 開発環境ではlocalhost/127.0.0.1の違いを許容
+    if (!isDevelopment) {
+      return { error: "不正なリクエスト元です" };
+    }
+    // 開発環境でも明らかに異なるオリジンは拒否
+    const originUrl = new URL(origin);
+    const isLocalOrigin =
+      originUrl.hostname === "localhost" ||
+      originUrl.hostname === "127.0.0.1" ||
+      originUrl.hostname === host;
+    if (!isLocalOrigin) {
+      return { error: "不正なリクエスト元です" };
+    }
   }
 
-  // DoS対策: レート制限チェック
+  // DoS対策: レート制限チェック（一般的な変更操作）
   const clientIp = getClientIp(request);
-  const rateLimit = checkRateLimit(clientIp, 10, 60 * 1000); // 1分間に10リクエスト
+  const rateLimit = checkMutationRateLimit(clientIp, session.user.id);
 
   if (!rateLimit.allowed) {
     const resetInSeconds = Math.ceil(rateLimit.resetIn / 1000);
+    const reason =
+      rateLimit.reason === "ip"
+        ? `このIPアドレス（残り${rateLimit.remaining}回）`
+        : `このアカウント（残り${rateLimit.remaining}回）`;
     return {
-      error: `リクエスト制限を超えました。${resetInSeconds}秒後に再試行してください。`,
+      error: `${reason}からのリクエストが多すぎます。${resetInSeconds}秒後に再試行してください。`,
     };
   }
 
   const formData = await request.formData();
   const intent = formData.get("intent");
-
   const db = getDb(context.cloudflare.env.DB);
 
-  // スターのトグル処理
+  // トグル系アクション
   if (intent === "toggleStar") {
-    const bookmarkId = formData.get("bookmarkId");
-    const currentStarred = formData.get("isStarred");
-
-    // 入力検証
-    if (!bookmarkId || typeof bookmarkId !== "string") {
-      return { error: "無効なリクエストです" };
-    }
-
-    const id = Number(bookmarkId);
-    if (isNaN(id) || id <= 0) {
-      return { error: "無効なIDです" };
-    }
-
-    try {
-      // スター状態を反転
-      await db
-        .update(bookmarks)
-        .set({
-          isStarred: currentStarred === "true" ? false : true,
-        })
-        .where(eq(bookmarks.id, id));
-      return { success: true };
-    } catch (error) {
-      console.error("Toggle star failed:", error);
-      return { error: "スターの更新に失敗しました" };
-    }
+    return handleToggleStar(formData, db, session.user.id);
   }
-
-  // 読了ステータスのトグル処理
   if (intent === "toggleReadStatus") {
-    const bookmarkId = formData.get("bookmarkId");
-    const currentStatus = formData.get("readStatus");
-
-    if (!bookmarkId || typeof bookmarkId !== "string") {
-      return { error: "無効なリクエストです" };
-    }
-
-    const id = Number(bookmarkId);
-    if (isNaN(id) || id <= 0) {
-      return { error: "無効なIDです" };
-    }
-
-    try {
-      await db
-        .update(bookmarks)
-        .set({
-          readStatus: currentStatus === "read" ? "unread" : "read",
-        })
-        .where(eq(bookmarks.id, id));
-      return { success: true };
-    } catch (error) {
-      console.error("Toggle read status failed:", error);
-      return { error: "ステータスの更新に失敗しました" };
-    }
+    return handleToggleReadStatus(formData, db, session.user.id);
   }
-
-  // アーカイブのトグル処理
   if (intent === "toggleArchive") {
-    const bookmarkId = formData.get("bookmarkId");
-    const currentArchived = formData.get("isArchived");
-
-    if (!bookmarkId || typeof bookmarkId !== "string") {
-      return { error: "無効なリクエストです" };
-    }
-
-    const id = Number(bookmarkId);
-    if (isNaN(id) || id <= 0) {
-      return { error: "無効なIDです" };
-    }
-
-    try {
-      await db
-        .update(bookmarks)
-        .set({
-          isArchived: currentArchived === "true" ? false : true,
-        })
-        .where(eq(bookmarks.id, id));
-      return { success: true };
-    } catch (error) {
-      console.error("Toggle archive failed:", error);
-      return { error: "アーカイブの更新に失敗しました" };
-    }
+    return handleToggleArchive(formData, db, session.user.id);
   }
 
-  // 削除処理
+  // CRUD系アクション
   if (intent === "delete") {
-    const bookmarkId = formData.get("bookmarkId");
-
-    // 入力検証
-    if (!bookmarkId || typeof bookmarkId !== "string") {
-      return { error: "無効なリクエストです" };
-    }
-
-    const id = Number(bookmarkId);
-    if (isNaN(id) || id <= 0) {
-      return { error: "無効なIDです" };
-    }
-
-    try {
-      await deleteBookmark(db, id);
-      return { success: true };
-    } catch (error) {
-      console.error("Delete failed:", error);
-      return { error: "削除に失敗しました" };
-    }
+    return handleDelete(formData, db, session.user.id);
   }
-
-  // 編集処理
   if (intent === "edit") {
-    const bookmarkId = formData.get("bookmarkId");
-    const title = formData.get("title") as string;
-    const description = formData.get("description") as string;
-    const majorCategory = formData.get("majorCategory") as string;
-    const minorCategory = formData.get("minorCategory") as string;
-
-    // 入力検証
-    if (!bookmarkId || typeof bookmarkId !== "string") {
-      return { error: "無効なリクエストです" };
+    // admin権限チェック
+    if (!hasAdminRole(session)) {
+      return Response.json({ error: "管理者権限が必要です" }, { status: 403 });
     }
-
-    const id = Number(bookmarkId);
-    if (isNaN(id) || id <= 0) {
-      return { error: "無効なIDです" };
-    }
-
-    if (!title || !description || !majorCategory || !minorCategory) {
-      return { error: "すべての項目を入力してください" };
-    }
-
-    try {
-      // カテゴリを取得または作成
-      const majorCategoryId = await getOrCreateCategory(
-        db,
-        majorCategory,
-        "major"
-      );
-      const minorCategoryId = await getOrCreateCategory(
-        db,
-        minorCategory,
-        "minor",
-        majorCategoryId
-      );
-
-      // ブックマークを更新
-      await db
-        .update(bookmarks)
-        .set({
-          title: title.slice(0, 500),
-          description: description.slice(0, 1000),
-          majorCategoryId,
-          minorCategoryId,
-          updatedAt: new Date(),
-        })
-        .where(eq(bookmarks.id, id));
-
-      return {
-        success: true,
-        toast: {
-          type: "success" as const,
-          title: "更新完了",
-          message: "ブックマークを更新しました",
-        },
-      };
-    } catch (error) {
-      console.error("Edit failed:", error);
-      return { error: "更新に失敗しました" };
-    }
+    return handleEdit(formData, db, session.user.id);
   }
-
-  // 情報更新処理（AIで再生成）
   if (intent === "refresh") {
-    const bookmarkId = formData.get("bookmarkId");
-
-    if (!bookmarkId || typeof bookmarkId !== "string") {
-      return { error: "無効なリクエストです" };
-    }
-
-    const id = Number(bookmarkId);
-    if (Number.isNaN(id) || id <= 0) {
-      return { error: "無効なIDです" };
-    }
-
-    try {
-      // 既存ブックマーク情報を取得
-      const existingBookmark = await db
-        .select()
-        .from(bookmarks)
-        .where(eq(bookmarks.id, id))
-        .limit(1);
-
-      if (existingBookmark.length === 0) {
-        return { error: "ブックマークが見つかりません" };
-      }
-
-      const bookmark = existingBookmark[0];
-
-      // ページメタデータを再取得
-      const { title, description, content } = await fetchPageMetadata(
-        bookmark.url
-      );
-
-      // 既存カテゴリ取得
-      const existingCategories = await getExistingCategories(db);
-
-      // AIでメタデータ生成
-      const metadata = await generateBookmarkMetadata(
-        context.cloudflare.env.AI,
-        bookmark.url,
-        title,
-        description,
-        content,
-        existingCategories
-      );
-
-      // カテゴリを取得または作成
-      const majorCategoryId = await getOrCreateCategory(
-        db,
-        metadata.majorCategory,
-        "major"
-      );
-      const minorCategoryId = await getOrCreateCategory(
-        db,
-        metadata.minorCategory,
-        "minor",
-        majorCategoryId
-      );
-
-      // ブックマーク情報を更新
-      await db
-        .update(bookmarks)
-        .set({
-          title,
-          description: metadata.description,
-          majorCategoryId,
-          minorCategoryId,
-          updatedAt: new Date(),
-        })
-        .where(eq(bookmarks.id, id));
-
-      return {
-        success: true,
-        toast: {
-          type: "success" as const,
-          title: "更新完了",
-          message: "ブックマーク情報を更新しました",
-        },
-      };
-    } catch (error) {
-      console.error("Refresh failed:", error);
-      return {
-        error:
-          error instanceof Error ? error.message : "情報の更新に失敗しました",
-        toast: {
-          type: "error" as const,
-          title: "エラー",
-          message:
-            error instanceof Error ? error.message : "情報の更新に失敗しました",
-        },
-      };
-    }
-  }
-
-  // すべてのブックマーク情報を一括更新
-  if (intent === "refreshAll") {
-    try {
-      // すべてのブックマークを取得
-      const allBookmarksFlat = await db.select().from(bookmarks);
-
-      if (allBookmarksFlat.length === 0) {
-        return {
-          error: "更新するブックマークがありません",
-          toast: {
-            type: "info" as const,
-            title: "情報",
-            message: "更新するブックマークがありません",
-          },
-        };
-      }
-
-      // バックグラウンドで処理
-      context.cloudflare.ctx.waitUntil(
-        (async () => {
-          console.log(
-            `[Refresh All] Starting batch update for ${allBookmarksFlat.length} bookmarks`
-          );
-
-          const existingCategories = await getExistingCategories(db);
-          let successCount = 0;
-          let errorCount = 0;
-
-          for (const bookmark of allBookmarksFlat) {
-            try {
-              console.log(`[Refresh All] Processing: ${bookmark.url}`);
-
-              // ページメタデータを再取得
-              const { title, description, content } = await fetchPageMetadata(
-                bookmark.url
-              );
-
-              // AIでメタデータ生成
-              const metadata = await generateBookmarkMetadata(
-                context.cloudflare.env.AI,
-                bookmark.url,
-                title,
-                description,
-                content,
-                existingCategories
-              );
-
-              // カテゴリを取得または作成
-              const majorCategoryId = await getOrCreateCategory(
-                db,
-                metadata.majorCategory,
-                "major"
-              );
-              const minorCategoryId = await getOrCreateCategory(
-                db,
-                metadata.minorCategory,
-                "minor",
-                majorCategoryId
-              );
-
-              // ブックマーク情報を更新
-              await db
-                .update(bookmarks)
-                .set({
-                  title,
-                  description: metadata.description,
-                  majorCategoryId,
-                  minorCategoryId,
-                  updatedAt: new Date(),
-                })
-                .where(eq(bookmarks.id, bookmark.id));
-
-              successCount++;
-              console.log(`[Refresh All] Success: ${bookmark.url}`);
-
-              // レート制限を考慮して少し待機
-              await new Promise((resolve) => setTimeout(resolve, 1000));
-            } catch (error) {
-              errorCount++;
-              console.error(`[Refresh All] Failed for ${bookmark.url}:`, error);
-            }
-          }
-
-          console.log(
-            `[Refresh All] Completed: ${successCount} succeeded, ${errorCount} failed`
-          );
-        })()
-      );
-
-      return {
-        success: true,
-        toast: {
-          type: "info" as const,
-          title: "一括更新を開始",
-          message: `${allBookmarksFlat.length}件のブックマークを更新しています...`,
-        },
-      };
-    } catch (error) {
-      console.error("Refresh all failed:", error);
-      return {
-        error:
-          error instanceof Error
-            ? error.message
-            : "一括更新の開始に失敗しました",
-        toast: {
-          type: "error" as const,
-          title: "エラー",
-          message:
-            error instanceof Error
-              ? error.message
-              : "一括更新の開始に失敗しました",
-        },
-      };
-    }
-  }
-
-  // ブックマークの並び替え処理
-  if (intent === "reorderBookmarks") {
-    try {
-      const ordersJson = formData.get("orders") as string;
-      if (!ordersJson) {
-        return {
-          error: "並び替え情報が不正です",
-          toast: {
-            type: "error" as const,
-            title: "エラー",
-            message: "並び替え情報が不正です",
-          },
-        };
-      }
-
-      const orders: Array<{ id: number; order: number }> =
-        JSON.parse(ordersJson);
-
-      // 各ブックマークの順序を更新（バージョンチェック付き）
-      const results = await Promise.all(
-        orders.map(({ id, order }) => updateBookmarkOrder(db, id, order))
-      );
-
-      // 失敗があれば競合エラーを返す
-      const failed = results.find((r) => !r.success);
-      if (failed) {
-        return {
-          error: "並び替え中に競合が発生しました",
-          toast: {
-            type: "warning" as const,
-            title: "競合検知",
-            message: "他のタブで変更されました。ページを再読み込みしてください",
-          },
-        };
-      }
-
-      return {
-        success: true,
-        intent: "reorderBookmarks",
-        toast: {
-          type: "success" as const,
-          title: "成功",
-          message: "並び替えが完了しました",
-        },
-      };
-    } catch (error) {
-      console.error("Reorder bookmarks failed:", error);
-      return {
-        error: "並び替えに失敗しました",
-        toast: {
-          type: "error" as const,
-          title: "エラー",
-          message: "並び替えに失敗しました",
-        },
-      };
-    }
-  }
-
-  // カテゴリの並び替え処理
-  if (intent === "reorderCategories") {
-    try {
-      const ordersJson = formData.get("orders") as string;
-      if (!ordersJson) {
-        return {
-          error: "並び替え情報が不正です",
-          toast: {
-            type: "error" as const,
-            title: "エラー",
-            message: "並び替え情報が不正です",
-          },
-        };
-      }
-
-      const orders: Array<{ id: number; order: number }> =
-        JSON.parse(ordersJson);
-
-      // 各カテゴリの順序を更新（バージョンチェック付き）
-      const results = await Promise.all(
-        orders.map(({ id, order }) => updateCategoryOrder(db, id, order))
-      );
-
-      // 失敗があれば競合エラーを返す
-      const failed = results.find((r) => !r.success);
-      if (failed) {
-        return {
-          error: "並び替え中に競合が発生しました",
-          toast: {
-            type: "warning" as const,
-            title: "競合検知",
-            message: "他のタブで変更されました。ページを再読み込みしてください",
-          },
-        };
-      }
-
-      return {
-        success: true,
-        intent: "reorderCategories",
-        toast: {
-          type: "success" as const,
-          title: "成功",
-          message: "カテゴリの並び替えが完了しました",
-        },
-      };
-    } catch (error) {
-      console.error("Reorder categories failed:", error);
-      return {
-        error: "並び替えに失敗しました",
-        toast: {
-          type: "error" as const,
-          title: "エラー",
-          message: "カテゴリの並び替えに失敗しました",
-        },
-      };
-    }
-  }
-
-  // ブックマーク追加処理
-  const url = formData.get("url") as string;
-
-  // 基本的な入力チェック
-  if (!url || typeof url !== "string") {
-    return {
-      error: "URLを入力してください",
-    };
-  }
-
-  // DoS対策: URL長の制限
-  if (url.length > 2048) {
-    return {
-      error: "URLが長すぎます（最大2048文字）",
-    };
-  }
-
-  // URL検証
-  const validation = validateUrl(url);
-  if (!validation.valid) {
-    return {
-      error: validation.error || "URLが無効です",
-    };
-  }
-
-  // 重複チェック
-  const isDuplicate = await checkDuplicateUrl(db, url);
-  if (isDuplicate) {
-    return {
-      error: "このURLは既に登録されています",
-    };
-  }
-
-  try {
-    // 1. ページメタデータ取得（高速）
-    const { title, description, content } = await fetchPageMetadata(url);
-
-    // 2. バックグラウンドでAI処理とDB保存を実行
-    context.cloudflare.ctx.waitUntil(
-      (async () => {
-        try {
-          console.log("[Background] Starting AI processing for:", url);
-
-          // 既存カテゴリ取得
-          const existingCategories = await getExistingCategories(db);
-
-          // AIでメタデータ生成
-          const metadata = await generateBookmarkMetadata(
-            context.cloudflare.env.AI,
-            url,
-            title,
-            description,
-            content,
-            existingCategories
-          );
-
-          console.log("[Background] AI processing completed, saving to DB");
-
-          // カテゴリを取得または作成
-          const majorCategoryId = await getOrCreateCategory(
-            db,
-            metadata.majorCategory,
-            "major",
-            undefined
-          );
-          const minorCategoryId = await getOrCreateCategory(
-            db,
-            metadata.minorCategory,
-            "minor",
-            majorCategoryId
-          );
-
-          // ブックマーク作成
-          await createBookmark(db, {
-            url: url,
-            title,
-            description: metadata.description,
-            majorCategoryId,
-            minorCategoryId,
-          });
-
-          console.log("[Background] Bookmark saved successfully");
-        } catch (error) {
-          console.error("[Background] Failed to process bookmark:", error);
-        }
-      })()
+    return handleRefresh(
+      formData,
+      db,
+      session.user.id,
+      context.cloudflare.env.AI
     );
-
-    // 3. すぐにレスポンスを返す（処理中状態）
-    return {
-      success: true,
-      processing: true,
-      toast: {
-        type: "info" as const,
-        title: "処理中",
-        message: `${title} を追加しています...`,
-      },
-    };
-  } catch (error) {
-    console.error("Failed to fetch page metadata:", error);
-    return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "ページ情報の取得に失敗しました",
-      toast: {
-        type: "error" as const,
-        title: "エラー",
-        message:
-          error instanceof Error
-            ? error.message
-            : "ページ情報の取得に失敗しました",
-      },
-    };
   }
+
+  // バッチ系アクション（admin権限必須）
+  if (intent === "refreshAll") {
+    if (!hasAdminRole(session)) {
+      return Response.json({ error: "管理者権限が必要です" }, { status: 403 });
+    }
+    return handleRefreshAll(
+      db,
+      context.cloudflare.env.AI,
+      context.cloudflare.ctx
+    );
+  }
+  if (intent === "reorderBookmarks") {
+    if (!hasAdminRole(session)) {
+      return Response.json({ error: "管理者権限が必要です" }, { status: 403 });
+    }
+    return handleReorderBookmarks(formData, db, session.user.id);
+  }
+  if (intent === "reorderCategories") {
+    if (!hasAdminRole(session)) {
+      return Response.json({ error: "管理者権限が必要です" }, { status: 403 });
+    }
+    return handleReorderCategories(formData, db, session.user.id);
+  }
+
+  // ブックマーク追加処理（intentなし）
+  return handleAddBookmark(
+    formData,
+    request,
+    db,
+    context.cloudflare.env.AI,
+    session.user.id,
+    context.cloudflare.ctx
+  );
 }
 
 export default function Home({ loaderData, actionData }: Route.ComponentProps) {
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
   const revalidator = useRevalidator();
-  const submit = useSubmit();
   const formRef = useRef<HTMLFormElement>(null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [editingBookmark, setEditingBookmark] = useState<{
@@ -722,18 +215,6 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
   const lastActionDataRef = useRef<typeof actionData | null>(null);
   const previousBookmarkCountRef = useRef(0);
 
-  // ドラッグ&ドロップ用state
-  const [draggedItem, setDraggedItem] = useState<{
-    type: "bookmark" | "category";
-    id: number;
-    currentOrder: number;
-  } | null>(null);
-  const [dragOverItem, setDragOverItem] = useState<{
-    type: "bookmark" | "category";
-    id: number;
-    position: "before" | "after";
-  } | null>(null);
-
   // 楽観的UI更新用（ローカルで即座に順序を変更）
   const [optimisticBookmarks, setOptimisticBookmarks] = useState(
     loaderData.bookmarksByCategory
@@ -746,6 +227,23 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
 
   // 表示用データ（楽観的更新がある場合はそちらを優先）
   const displayBookmarks = optimisticBookmarks;
+
+  // ドラッグ&ドロップ用のカスタムフック
+  const {
+    draggedItem,
+    dragOverItem,
+    handleDragStart,
+    handleDragOver,
+    handleDrop,
+    handleDragEnd,
+    handleMoveCategoryUp,
+    handleMoveCategoryDown,
+  } = useDragAndDrop({
+    displayBookmarks,
+    setOptimisticBookmarks,
+    loaderDataBookmarks: loaderData.bookmarksByCategory,
+    setToasts,
+  });
 
   // 現在のブックマーク総数を計算
   const currentBookmarkCount = loaderData.bookmarksByCategory.reduce(
@@ -767,11 +265,12 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
 
       return () => clearInterval(interval);
     }
-  }, [processingCount]);
+  }, [processingCount, revalidator]);
 
   // Broadcast Channelの初期化（タブ間同期）
   useEffect(() => {
     initBroadcastChannel((message: BroadcastMessage) => {
+      // eslint-disable-next-line no-console
       console.log("他のタブからの更新を検知:", message);
 
       // 他のタブで変更があったらデータを再読み込み
@@ -840,7 +339,18 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
       lastActionDataRef.current = actionData;
 
       // エラー時や競合時は楽観的stateをリセット
-      if (actionData.error || actionData.toast?.type === "warning") {
+      const hasError = "error" in actionData;
+      const hasToast =
+        "toast" in actionData &&
+        actionData.toast !== null &&
+        typeof actionData.toast === "object";
+      const hasWarningToast =
+        hasToast &&
+        actionData.toast !== null &&
+        typeof actionData.toast === "object" &&
+        "type" in actionData.toast &&
+        actionData.toast.type === "warning";
+      if (hasError || hasWarningToast) {
         setOptimisticBookmarks(loaderData.bookmarksByCategory);
       }
 
@@ -850,64 +360,70 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
       }
 
       // 結果トーストを表示
-      if (actionData.toast) {
+      if (hasToast && actionData.toast) {
         const toastId = Date.now().toString();
+        const toast = actionData.toast as ToastMessage;
         setToasts((prev) => [
           ...prev,
           {
+            ...toast,
             id: toastId,
-            ...actionData.toast,
           },
         ]);
       }
 
       if (actionData.success) {
         // Broadcast: 他のタブに変更を通知
-        if (actionData.intent === "add" && actionData.bookmarkId) {
+        const intent = "intent" in actionData ? actionData.intent : undefined;
+        if (intent === "add" && "bookmarkId" in actionData) {
           broadcast({
             type: "bookmark-added",
-            bookmarkId: actionData.bookmarkId,
+            bookmarkId: actionData.bookmarkId as number,
           });
-        } else if (actionData.intent === "delete" && actionData.bookmarkId) {
+        } else if (intent === "delete" && "bookmarkId" in actionData) {
           broadcast({
             type: "bookmark-deleted",
-            bookmarkId: actionData.bookmarkId,
+            bookmarkId: actionData.bookmarkId as number,
           });
         } else if (
-          actionData.intent === "reorderBookmarks" &&
-          actionData.bookmarkId
+          intent === "reorderBookmarks" &&
+          "bookmarkId" in actionData
         ) {
           broadcast({
             type: "bookmark-reordered",
-            bookmarkId: actionData.bookmarkId,
+            bookmarkId: actionData.bookmarkId as number,
             newOrder: 0,
           });
         } else if (
-          actionData.intent === "reorderCategories" &&
-          actionData.categoryId
+          intent === "reorderCategories" &&
+          "categoryId" in actionData
         ) {
           broadcast({
             type: "category-reordered",
-            categoryId: actionData.categoryId,
+            categoryId: actionData.categoryId as number,
             newOrder: 0,
           });
         } else if (
+          intent &&
+          typeof intent === "string" &&
           [
             "toggleStar",
             "toggleReadStatus",
             "toggleArchive",
             "refresh",
             "edit",
-          ].includes(actionData.intent || "")
+          ].includes(intent)
         ) {
-          broadcast({
-            type: "bookmark-updated",
-            bookmarkId: actionData.bookmarkId || 0,
-          });
+          const bookmarkId = (
+            "bookmarkId" in actionData ? actionData.bookmarkId : 0
+          ) as number;
+          broadcast({ type: "bookmark-updated", bookmarkId });
         }
 
         // 処理中の場合、カウントを増やして定期リフレッシュを開始
-        if (actionData.processing) {
+        const processing =
+          "processing" in actionData ? actionData.processing : false;
+        if (processing) {
           setProcessingCount((prev) => prev + 1);
 
           // 30秒後にタイムアウトと見なして定期リフレッシュを停止
@@ -923,302 +439,18 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
         }
       }
     }
-  }, [actionData, isSubmitting]);
+  }, [actionData, isSubmitting, revalidator, loaderData.bookmarksByCategory]);
 
   const handleDismissToast = (id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // ドラッグ&ドロップハンドラー
-  const handleDragStart = (
-    type: "bookmark" | "category",
-    id: number,
-    order: number
-  ) => {
-    setDraggedItem({ type, id, currentOrder: order });
-  };
-
-  const handleDragOver = (
-    e: React.DragEvent,
-    type: "bookmark" | "category",
-    id: number
-  ) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!draggedItem || draggedItem.type !== type || draggedItem.id === id) {
-      return;
-    }
-
-    // マウスの位置から挿入位置を判定（上半分なら前、下半分なら後）
-    const rect = e.currentTarget.getBoundingClientRect();
-    const midpoint = rect.top + rect.height / 2;
-    const position = e.clientY < midpoint ? "before" : "after";
-
-    setDragOverItem({ type, id, position });
-  };
-
-  const handleDrop = async (
-    e: React.DragEvent,
-    targetType: "bookmark" | "category",
-    targetId: number,
-    targetOrder: number,
-    minorCategoryId?: number
-  ) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (
-      !draggedItem ||
-      draggedItem.type !== targetType ||
-      draggedItem.id === targetId
-    ) {
-      setDraggedItem(null);
-      setDragOverItem(null);
-      return;
-    }
-
-    try {
-      // ブックマークの並び替えのみ対応（カテゴリはボタンで移動）
-      if (targetType === "bookmark") {
-        // ブックマークの並び替え
-        // ドラッグ元とドロップ先のカテゴリを取得
-        let draggedCategoryId: number | null = null;
-        let targetCategoryId: number | null = null;
-
-        for (const major of displayBookmarks) {
-          for (const minor of major.minorCategories) {
-            if (minor.bookmarks.some((b) => b.id === draggedItem.id)) {
-              draggedCategoryId = minor.minorCategoryId;
-            }
-            if (minor.bookmarks.some((b) => b.id === targetId)) {
-              targetCategoryId = minor.minorCategoryId;
-            }
-          }
-        }
-
-        if (draggedCategoryId === null || targetCategoryId === null) return;
-        if (draggedCategoryId !== targetCategoryId) {
-          // 異なるカテゴリ間での移動を試みた場合の警告トースト
-          const toastId = Date.now().toString();
-          setToasts((prev) => [
-            ...prev,
-            {
-              id: toastId,
-              type: "warning" as const,
-              title: "移動できません",
-              message: "同じカテゴリ内でのみ並び替えできます",
-            },
-          ]);
-          setDraggedItem(null);
-          setDragOverItem(null);
-          return;
-        }
-
-        // カテゴリIDベースで検索
-        type BookmarkArray = BookmarkWithCategories[];
-        let bookmarksInCategory: BookmarkArray = [];
-        for (const major of displayBookmarks) {
-          const minor = major.minorCategories.find(
-            (m) => m.minorCategoryId === targetCategoryId
-          );
-          if (minor) {
-            bookmarksInCategory = [...minor.bookmarks];
-            break;
-          }
-        }
-
-        const draggedIndex = bookmarksInCategory.findIndex(
-          (b) => b.id === draggedItem.id
-        );
-        const targetIndex = bookmarksInCategory.findIndex(
-          (b) => b.id === targetId
-        );
-
-        if (
-          draggedIndex === -1 ||
-          targetIndex === -1 ||
-          draggedIndex === targetIndex
-        )
-          return;
-
-        // positionに基づいて挿入位置を調整
-        const position = dragOverItem?.position || "after";
-        let insertIndex = targetIndex;
-
-        if (position === "after") {
-          insertIndex = targetIndex + 1;
-        }
-
-        // draggedIndexがinsertIndexより前にある場合、削除後にindexがずれるので調整
-        if (draggedIndex < insertIndex) {
-          insertIndex--;
-        }
-
-        // 同じ位置なら何もしない
-        if (draggedIndex === insertIndex) {
-          setDraggedItem(null);
-          setDragOverItem(null);
-          return;
-        }
-
-        // 配列を並び替え
-        const [removed] = bookmarksInCategory.splice(draggedIndex, 1);
-        bookmarksInCategory.splice(insertIndex, 0, removed);
-
-        // 楽観的UI更新: ローカルstateを即座に更新
-        setOptimisticBookmarks((prevBookmarks) => {
-          return prevBookmarks.map((major) => ({
-            ...major,
-            minorCategories: major.minorCategories.map((minor) => {
-              if (minor.minorCategoryId === targetCategoryId) {
-                return { ...minor, bookmarks: bookmarksInCategory };
-              }
-              return minor;
-            }),
-          }));
-        });
-
-        // 新しい順序を計算
-        const orders = bookmarksInCategory.map((bookmark, index) => ({
-          id: bookmark.id,
-          order: index,
-        }));
-
-        // サーバーに送信
-        const formData = new FormData();
-        formData.append("intent", "reorderBookmarks");
-        formData.append("orders", JSON.stringify(orders));
-
-        submit(formData, { method: "post", action: "/?index" });
-      }
-    } catch (error) {
-      console.error("Reorder failed:", error);
-      // エラーが発生したら楽観的stateをリセット
-      setOptimisticBookmarks(loaderData.bookmarksByCategory);
-
-      // エラートーストを表示
-      const toastId = Date.now().toString();
-      setToasts((prev) => [
-        ...prev,
-        {
-          id: toastId,
-          type: "error" as const,
-          title: "エラー",
-          message:
-            error instanceof Error ? error.message : "並び替えに失敗しました",
-        },
-      ]);
-    } finally {
-      setDraggedItem(null);
-      setDragOverItem(null);
-    }
-  };
-
-  const handleDragEnd = () => {
-    setDraggedItem(null);
-    setDragOverItem(null);
-  };
-
-  // カテゴリをボタンで移動するハンドラー
-  const handleMoveCategoryUp = async (
-    majorCategoryId: number,
-    currentIndex: number
-  ) => {
-    if (currentIndex === 0) return; // 既に一番上
-
-    try {
-      const categories = [...displayBookmarks];
-      const targetIndex = currentIndex - 1;
-
-      // 配列を並び替え
-      const [removed] = categories.splice(currentIndex, 1);
-      categories.splice(targetIndex, 0, removed);
-
-      // 楽観的UI更新
-      setOptimisticBookmarks(categories);
-
-      // 新しい順序を計算
-      const orders = categories.map((category, index) => ({
-        id: category.majorCategoryId,
-        order: index,
-      }));
-
-      // サーバーに送信
-      const formData = new FormData();
-      formData.append("intent", "reorderCategories");
-      formData.append("orders", JSON.stringify(orders));
-
-      submit(formData, { method: "post", action: "/?index" });
-    } catch (error) {
-      console.error("Move category up failed:", error);
-      // エラーが発生したら楽観的stateをリセット
-      setOptimisticBookmarks(loaderData.bookmarksByCategory);
-
-      // エラートーストを表示
-      const toastId = Date.now().toString();
-      setToasts((prev) => [
-        ...prev,
-        {
-          id: toastId,
-          type: "error" as const,
-          title: "エラー",
-          message: "カテゴリの移動に失敗しました",
-        },
-      ]);
-    }
-  };
-
-  const handleMoveCategoryDown = async (
-    majorCategoryId: number,
-    currentIndex: number
-  ) => {
-    if (currentIndex === displayBookmarks.length - 1) return; // 既に一番下
-
-    try {
-      const categories = [...displayBookmarks];
-      const targetIndex = currentIndex + 1;
-
-      // 配列を並び替え
-      const [removed] = categories.splice(currentIndex, 1);
-      categories.splice(targetIndex, 0, removed);
-
-      // 楽観的UI更新
-      setOptimisticBookmarks(categories);
-
-      // 新しい順序を計算
-      const orders = categories.map((category, index) => ({
-        id: category.majorCategoryId,
-        order: index,
-      }));
-
-      // サーバーに送信
-      const formData = new FormData();
-      formData.append("intent", "reorderCategories");
-      formData.append("orders", JSON.stringify(orders));
-
-      submit(formData, { method: "post", action: "/?index" });
-    } catch (error) {
-      console.error("Move category down failed:", error);
-      // エラーが発生したら楽観的stateをリセット
-      setOptimisticBookmarks(loaderData.bookmarksByCategory);
-
-      // エラートーストを表示
-      const toastId = Date.now().toString();
-      setToasts((prev) => [
-        ...prev,
-        {
-          id: toastId,
-          type: "error" as const,
-          title: "エラー",
-          message: "カテゴリの移動に失敗しました",
-        },
-      ]);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-[#F5F5F7] dark:bg-black transition-colors duration-500">
       <ToastContainer toasts={toasts} onDismiss={handleDismissToast} />
+
+      {/* ヘッダー */}
+      <Header user={loaderData.user} />
 
       {/* ナビゲーションバー風ヘッダー */}
       <div className="sticky top-0 z-30 bg-[#F5F5F7]/80 dark:bg-black/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800/50">
@@ -1227,32 +459,34 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
             Bookmarks
           </h1>
 
-          {/* 一括更新ボタン */}
-          <Form method="post">
-            <input type="hidden" name="intent" value="refreshAll" />
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
-              title="すべてのブックマーク情報を更新"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth="2"
+          {/* 一括更新ボタン（admin限定） */}
+          {loaderData.isAdmin && (
+            <Form method="post">
+              <input type="hidden" name="intent" value="refreshAll" />
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
+                title="すべてのブックマーク情報を更新"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
-              {isSubmitting ? "更新中..." : "すべて更新"}
-            </button>
-          </Form>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+                {isSubmitting ? "更新中..." : "すべて更新"}
+              </button>
+            </Form>
+          )}
         </div>
       </div>
 
@@ -1448,371 +682,29 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                     </div>
 
                     <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                      {loaderData.starredBookmarks.map((bookmark, index) => {
-                        const isDragging =
-                          draggedItem?.type === "bookmark" &&
-                          draggedItem.id === bookmark.id;
-                        const isDragOver =
-                          dragOverItem?.type === "bookmark" &&
-                          dragOverItem.id === bookmark.id;
-                        const showBeforeLine =
-                          isDragOver && dragOverItem?.position === "before";
-                        const showAfterLine =
-                          isDragOver && dragOverItem?.position === "after";
-
-                        return (
-                          <div key={bookmark.id} className="relative">
-                            {/* 挿入位置インジケーター（前） - カード間の左側に表示 */}
-                            {showBeforeLine && (
-                              <div className="absolute -left-2 top-0 bottom-0 w-1 bg-blue-500 dark:bg-blue-400 z-20 shadow-lg rounded-full" />
-                            )}
-
-                            <div
-                              draggable
-                              onDragStart={() =>
-                                handleDragStart("bookmark", bookmark.id, index)
-                              }
-                              onDragOver={(e) =>
-                                handleDragOver(e, "bookmark", bookmark.id)
-                              }
-                              onDrop={(e) =>
-                                handleDrop(e, "bookmark", bookmark.id, index)
-                              }
-                              onDragEnd={handleDragEnd}
-                              className={`group relative bg-white dark:bg-gray-900 rounded-2xl p-5 transition-all duration-200 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-white/5 border flex flex-col animate-scale-in ${
-                                isDragging
-                                  ? "opacity-30 scale-95 cursor-grabbing border-gray-300 dark:border-gray-700"
-                                  : "cursor-grab border-transparent hover:border-gray-100 dark:hover:border-gray-800"
-                              } ${isDragOver ? "scale-105" : ""}`}
-                            >
-                              <div className="flex flex-col flex-1 min-h-0">
-                                {/* ドラッグハンドルアイコン */}
-                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-40 transition-opacity pointer-events-none">
-                                  <svg
-                                    className="w-5 h-5 text-gray-400"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M8 9h8M8 15h8"
-                                    />
-                                  </svg>
-                                </div>
-                                <div className="flex items-start gap-3 mb-3">
-                                  {/* Favicon */}
-                                  <div className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800 flex items-center justify-center flex-shrink-0 shadow-inner">
-                                    <img
-                                      src={`https://www.google.com/s2/favicons?domain=${new URL(bookmark.url).hostname}&sz=64`}
-                                      alt=""
-                                      className="w-6 h-6 rounded-md"
-                                      onError={(e) => {
-                                        e.currentTarget.style.display = "none";
-                                      }}
-                                    />
-                                  </div>
-
-                                  <a
-                                    href={bookmark.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex-1 min-w-0 block group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors"
-                                  >
-                                    <h4 className="font-semibold text-sm sm:text-base md:text-lg text-[#1D1D1F] dark:text-[#F5F5F7] mb-2 line-clamp-2 tracking-tight leading-snug">
-                                      {bookmark.title}
-                                    </h4>
-                                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-3 leading-relaxed">
-                                      {bookmark.description}
-                                    </p>
-                                    <div className="flex flex-col gap-1 text-[10px] sm:text-xs text-gray-400 dark:text-gray-500 font-medium">
-                                      <span className="truncate">
-                                        {new URL(bookmark.url).hostname}
-                                      </span>
-                                      <span>
-                                        {new Date(
-                                          bookmark.createdAt
-                                        ).toLocaleDateString("en-US", {
-                                          month: "short",
-                                          day: "numeric",
-                                        })}
-                                      </span>
-                                    </div>
-                                  </a>
-                                </div>
-
-                                <div className="shrink-0 flex items-center gap-1 justify-end mt-auto pt-2">
-                                  {/* 読了ステータスボタン */}
-                                  <Form method="post">
-                                    <input
-                                      type="hidden"
-                                      name="intent"
-                                      value="toggleReadStatus"
-                                    />
-                                    <input
-                                      type="hidden"
-                                      name="bookmarkId"
-                                      value={bookmark.id}
-                                    />
-                                    <input
-                                      type="hidden"
-                                      name="readStatus"
-                                      value={bookmark.readStatus}
-                                    />
-                                    <button
-                                      type="submit"
-                                      className="p-2 text-gray-400 hover:text-green-500 dark:hover:text-green-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
-                                      title={
-                                        bookmark.readStatus === "read"
-                                          ? "Mark as unread"
-                                          : "Mark as read"
-                                      }
-                                    >
-                                      {bookmark.readStatus === "read" ? (
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          className="h-5 w-5 text-green-500 dark:text-green-400"
-                                          viewBox="0 0 20 20"
-                                          fill="currentColor"
-                                        >
-                                          <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" />
-                                        </svg>
-                                      ) : (
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          className="h-5 w-5"
-                                          fill="none"
-                                          viewBox="0 0 24 24"
-                                          stroke="currentColor"
-                                          strokeWidth="1.5"
-                                        >
-                                          <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                                          />
-                                        </svg>
-                                      )}
-                                    </button>
-                                  </Form>
-
-                                  {/* スターボタン */}
-                                  <Form method="post">
-                                    <input
-                                      type="hidden"
-                                      name="intent"
-                                      value="toggleStar"
-                                    />
-                                    <input
-                                      type="hidden"
-                                      name="bookmarkId"
-                                      value={bookmark.id}
-                                    />
-                                    <input
-                                      type="hidden"
-                                      name="isStarred"
-                                      value={bookmark.isStarred.toString()}
-                                    />
-                                    <button
-                                      type="submit"
-                                      className="p-2 text-gray-400 hover:text-yellow-500 dark:hover:text-yellow-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
-                                      title={
-                                        bookmark.isStarred ? "Unstar" : "Star"
-                                      }
-                                    >
-                                      <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        className="h-5 w-5 text-yellow-500 dark:text-yellow-400"
-                                        viewBox="0 0 20 20"
-                                        fill="currentColor"
-                                      >
-                                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                      </svg>
-                                    </button>
-                                  </Form>
-
-                                  {/* アーカイブボタン */}
-                                  <Form method="post">
-                                    <input
-                                      type="hidden"
-                                      name="intent"
-                                      value="toggleArchive"
-                                    />
-                                    <input
-                                      type="hidden"
-                                      name="bookmarkId"
-                                      value={bookmark.id}
-                                    />
-                                    <input
-                                      type="hidden"
-                                      name="isArchived"
-                                      value={bookmark.isArchived.toString()}
-                                    />
-                                    <button
-                                      type="submit"
-                                      className="p-2 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
-                                      title={
-                                        bookmark.isArchived
-                                          ? "Unarchive"
-                                          : "Archive"
-                                      }
-                                    >
-                                      {bookmark.isArchived ? (
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          className="h-5 w-5 text-blue-500 dark:text-blue-400"
-                                          viewBox="0 0 20 20"
-                                          fill="currentColor"
-                                        >
-                                          <path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4z" />
-                                          <path
-                                            fillRule="evenodd"
-                                            d="M3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"
-                                            clipRule="evenodd"
-                                          />
-                                        </svg>
-                                      ) : (
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          className="h-5 w-5"
-                                          fill="none"
-                                          viewBox="0 0 24 24"
-                                          stroke="currentColor"
-                                          strokeWidth="1.5"
-                                        >
-                                          <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"
-                                          />
-                                        </svg>
-                                      )}
-                                    </button>
-                                  </Form>
-
-                                  {/* 情報更新ボタン */}
-                                  <Form method="post">
-                                    <input
-                                      type="hidden"
-                                      name="intent"
-                                      value="refresh"
-                                    />
-                                    <input
-                                      type="hidden"
-                                      name="bookmarkId"
-                                      value={bookmark.id}
-                                    />
-                                    <button
-                                      type="submit"
-                                      onClick={(e) => {
-                                        if (
-                                          !confirm(
-                                            `"「${bookmark.title}」の情報を再取得しますか？\nカテゴリや説明が更新される可能性があります。`
-                                          )
-                                        ) {
-                                          e.preventDefault();
-                                        }
-                                      }}
-                                      className="p-2 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
-                                      title="情報を更新"
-                                    >
-                                      <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        className="h-5 w-5"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
-                                        strokeWidth="1.5"
-                                      >
-                                        <path
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                                        />
-                                      </svg>
-                                    </button>
-                                  </Form>
-
-                                  {/* 編集ボタン */}
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setEditingBookmark({
-                                        id: bookmark.id,
-                                        title: bookmark.title,
-                                        description: bookmark.description,
-                                        majorCategory:
-                                          bookmark.majorCategory.name,
-                                        minorCategory:
-                                          bookmark.minorCategory.name,
-                                      })
-                                    }
-                                    className="p-2 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
-                                    title="Edit"
-                                  >
-                                    <svg
-                                      xmlns="http://www.w3.org/2000/svg"
-                                      className="h-5 w-5"
-                                      viewBox="0 0 20 20"
-                                      fill="currentColor"
-                                    >
-                                      <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                                    </svg>
-                                  </button>
-
-                                  {/* 削除ボタン */}
-                                  <Form method="post">
-                                    <input
-                                      type="hidden"
-                                      name="intent"
-                                      value="delete"
-                                    />
-                                    <input
-                                      type="hidden"
-                                      name="bookmarkId"
-                                      value={bookmark.id}
-                                    />
-                                    <button
-                                      type="submit"
-                                      onClick={(e) => {
-                                        if (
-                                          !confirm(
-                                            `"「${bookmark.title}」を削除しますか？`
-                                          )
-                                        ) {
-                                          e.preventDefault();
-                                        }
-                                      }}
-                                      className="p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                                      title="Delete"
-                                    >
-                                      <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        className="h-5 w-5"
-                                        viewBox="0 0 20 20"
-                                        fill="currentColor"
-                                      >
-                                        <path
-                                          fillRule="evenodd"
-                                          d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                                          clipRule="evenodd"
-                                        />
-                                      </svg>
-                                    </button>
-                                  </Form>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* 挿入位置インジケーター（後） - カード間の右側に表示 */}
-                            {showAfterLine && (
-                              <div className="absolute -right-2 top-0 bottom-0 w-1 bg-blue-500 dark:bg-blue-400 z-20 shadow-lg rounded-full" />
-                            )}
-                          </div>
-                        );
-                      })}
+                      {loaderData.starredBookmarks.map((bookmark, index) => (
+                        <BookmarkCardFull
+                          key={bookmark.id}
+                          bookmark={bookmark}
+                          index={index}
+                          isDragging={
+                            draggedItem?.type === "bookmark" &&
+                            draggedItem.id === bookmark.id
+                          }
+                          isDragOver={
+                            dragOverItem?.type === "bookmark" &&
+                            dragOverItem.id === bookmark.id
+                          }
+                          dragOverPosition={dragOverItem?.position}
+                          onDragStart={handleDragStart}
+                          onDragOver={handleDragOver}
+                          onDrop={handleDrop}
+                          onDragEnd={handleDragEnd}
+                          onEdit={setEditingBookmark}
+                          isPinned={true}
+                          isAdmin={loaderData.isAdmin}
+                        />
+                      ))}
                     </div>
                   </div>
                 )}
@@ -1824,67 +716,23 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                       id={major.majorCategory}
                       className="space-y-8 scroll-mt-24 relative"
                     >
-                      <div className="flex items-center gap-3 pb-4 border-b border-gray-200 dark:border-gray-800">
-                        <h2 className="text-xl sm:text-2xl md:text-2xl font-bold text-[#1D1D1F] dark:text-[#F5F5F7] tracking-tight flex-1">
-                          {major.majorCategory}
-                        </h2>
-
-                        {/* カテゴリ移動ボタン */}
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleMoveCategoryUp(
-                                major.majorCategoryId,
-                                majorIndex
-                              )
-                            }
-                            disabled={majorIndex === 0}
-                            className="p-2 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-gray-400"
-                            title="上に移動"
-                          >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="h-5 w-5"
-                              viewBox="0 0 20 20"
-                              fill="currentColor"
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleMoveCategoryDown(
-                                major.majorCategoryId,
-                                majorIndex
-                              )
-                            }
-                            disabled={
-                              majorIndex === displayBookmarks.length - 1
-                            }
-                            className="p-2 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-gray-400"
-                            title="下に移動"
-                          >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="h-5 w-5"
-                              viewBox="0 0 20 20"
-                              fill="currentColor"
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
+                      <CategoryHeader
+                        majorCategory={major.majorCategory}
+                        majorIndex={majorIndex}
+                        totalCategories={displayBookmarks.length}
+                        onMoveUp={() =>
+                          handleMoveCategoryUp(
+                            major.majorCategoryId,
+                            majorIndex
+                          )
+                        }
+                        onMoveDown={() =>
+                          handleMoveCategoryDown(
+                            major.majorCategoryId,
+                            majorIndex
+                          )
+                        }
+                      />
 
                       {major.minorCategories.map((minor) => (
                         <div
@@ -1897,413 +745,30 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                           </h3>
 
                           <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                            {minor.bookmarks.map((bookmark, index) => {
-                              const isDragging =
-                                draggedItem?.type === "bookmark" &&
-                                draggedItem.id === bookmark.id;
-                              const isDragOver =
-                                dragOverItem?.type === "bookmark" &&
-                                dragOverItem.id === bookmark.id;
-                              const showBeforeLine =
-                                isDragOver &&
-                                dragOverItem?.position === "before";
-                              const showAfterLine =
-                                isDragOver &&
-                                dragOverItem?.position === "after";
-
-                              return (
-                                <div key={bookmark.id} className="relative">
-                                  {/* 挿入位置インジケーター（前） - カード間の左側に表示 */}
-                                  {showBeforeLine && (
-                                    <div className="absolute -left-2 top-0 bottom-0 w-1 bg-blue-500 dark:bg-blue-400 z-20 shadow-lg rounded-full" />
-                                  )}
-
-                                  <div
-                                    draggable
-                                    onDragStart={() =>
-                                      handleDragStart(
-                                        "bookmark",
-                                        bookmark.id,
-                                        index
-                                      )
-                                    }
-                                    onDragOver={(e) =>
-                                      handleDragOver(e, "bookmark", bookmark.id)
-                                    }
-                                    onDrop={(e) =>
-                                      handleDrop(
-                                        e,
-                                        "bookmark",
-                                        bookmark.id,
-                                        index,
-                                        minor.minorCategoryId
-                                      )
-                                    }
-                                    onDragEnd={handleDragEnd}
-                                    className={`group relative bg-white dark:bg-gray-900 rounded-2xl p-5 transition-all duration-200 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-white/5 border flex flex-col animate-scale-in ${
-                                      bookmark.isArchived
-                                        ? "opacity-60 grayscale"
-                                        : ""
-                                    } ${
-                                      isDragging
-                                        ? "opacity-30 scale-95 cursor-grabbing border-gray-300 dark:border-gray-700"
-                                        : "cursor-grab border-transparent hover:border-gray-100 dark:hover:border-gray-800"
-                                    } ${isDragOver ? "scale-105" : ""}`}
-                                  >
-                                    <div className="flex flex-col flex-1 min-h-0">
-                                      {/* ドラッグハンドルアイコン */}
-                                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-40 transition-opacity pointer-events-none">
-                                        <svg
-                                          className="w-5 h-5 text-gray-400"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          viewBox="0 0 24 24"
-                                        >
-                                          <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M8 9h8M8 15h8"
-                                          />
-                                        </svg>
-                                      </div>
-                                      <div className="flex items-start gap-3 mb-3">
-                                        {/* Favicon */}
-                                        <div className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800 flex items-center justify-center flex-shrink-0 shadow-inner">
-                                          <img
-                                            src={`https://www.google.com/s2/favicons?domain=${new URL(bookmark.url).hostname}&sz=64`}
-                                            alt=""
-                                            className="w-6 h-6 rounded-md"
-                                            onError={(e) => {
-                                              e.currentTarget.style.display =
-                                                "none";
-                                            }}
-                                          />
-                                        </div>
-
-                                        <a
-                                          href={bookmark.url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="flex-1 min-w-0 block group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors"
-                                        >
-                                          <h4 className="font-semibold text-sm sm:text-base md:text-lg text-[#1D1D1F] dark:text-[#F5F5F7] mb-2 line-clamp-2 tracking-tight leading-snug">
-                                            {bookmark.title}
-                                          </h4>
-                                          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-3 leading-relaxed">
-                                            {bookmark.description}
-                                          </p>
-                                          <div className="flex flex-col gap-1 text-[10px] sm:text-xs text-gray-400 dark:text-gray-500 font-medium">
-                                            <span className="truncate">
-                                              {new URL(bookmark.url).hostname}
-                                            </span>
-                                            <span>
-                                              {new Date(
-                                                bookmark.createdAt
-                                              ).toLocaleDateString("en-US", {
-                                                month: "short",
-                                                day: "numeric",
-                                              })}
-                                            </span>
-                                          </div>
-                                        </a>
-                                      </div>
-
-                                      <div className="shrink-0 flex items-center gap-1 justify-end mt-auto pt-2">
-                                        {/* 読了ステータスボタン */}
-                                        <Form method="post">
-                                          <input
-                                            type="hidden"
-                                            name="intent"
-                                            value="toggleReadStatus"
-                                          />
-                                          <input
-                                            type="hidden"
-                                            name="bookmarkId"
-                                            value={bookmark.id}
-                                          />
-                                          <input
-                                            type="hidden"
-                                            name="readStatus"
-                                            value={bookmark.readStatus}
-                                          />
-                                          <button
-                                            type="submit"
-                                            className="p-2 text-gray-400 hover:text-green-500 dark:hover:text-green-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
-                                            title={
-                                              bookmark.readStatus === "read"
-                                                ? "Mark as unread"
-                                                : "Mark as read"
-                                            }
-                                          >
-                                            {bookmark.readStatus === "read" ? (
-                                              <svg
-                                                xmlns="http://www.w3.org/2000/svg"
-                                                className="h-5 w-5 text-green-500 dark:text-green-400"
-                                                viewBox="0 0 20 20"
-                                                fill="currentColor"
-                                              >
-                                                <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" />
-                                              </svg>
-                                            ) : (
-                                              <svg
-                                                xmlns="http://www.w3.org/2000/svg"
-                                                className="h-5 w-5"
-                                                fill="none"
-                                                viewBox="0 0 24 24"
-                                                stroke="currentColor"
-                                                strokeWidth="1.5"
-                                              >
-                                                <path
-                                                  strokeLinecap="round"
-                                                  strokeLinejoin="round"
-                                                  d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                                                />
-                                              </svg>
-                                            )}
-                                          </button>
-                                        </Form>
-
-                                        {/* スターボタン */}
-                                        <Form method="post">
-                                          <input
-                                            type="hidden"
-                                            name="intent"
-                                            value="toggleStar"
-                                          />
-                                          <input
-                                            type="hidden"
-                                            name="bookmarkId"
-                                            value={bookmark.id}
-                                          />
-                                          <input
-                                            type="hidden"
-                                            name="isStarred"
-                                            value={bookmark.isStarred.toString()}
-                                          />
-                                          <button
-                                            type="submit"
-                                            className="p-2 text-gray-400 hover:text-yellow-500 dark:hover:text-yellow-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
-                                            title={
-                                              bookmark.isStarred
-                                                ? "Unstar"
-                                                : "Star"
-                                            }
-                                          >
-                                            {bookmark.isStarred ? (
-                                              <svg
-                                                xmlns="http://www.w3.org/2000/svg"
-                                                className="h-5 w-5 text-yellow-500 dark:text-yellow-400"
-                                                viewBox="0 0 20 20"
-                                                fill="currentColor"
-                                              >
-                                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                              </svg>
-                                            ) : (
-                                              <svg
-                                                xmlns="http://www.w3.org/2000/svg"
-                                                className="h-5 w-5"
-                                                fill="none"
-                                                viewBox="0 0 24 24"
-                                                stroke="currentColor"
-                                                strokeWidth="1.5"
-                                              >
-                                                <path
-                                                  strokeLinecap="round"
-                                                  strokeLinejoin="round"
-                                                  d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
-                                                />
-                                              </svg>
-                                            )}
-                                          </button>
-                                        </Form>
-
-                                        {/* アーカイブボタン */}
-                                        <Form method="post">
-                                          <input
-                                            type="hidden"
-                                            name="intent"
-                                            value="toggleArchive"
-                                          />
-                                          <input
-                                            type="hidden"
-                                            name="bookmarkId"
-                                            value={bookmark.id}
-                                          />
-                                          <input
-                                            type="hidden"
-                                            name="isArchived"
-                                            value={bookmark.isArchived.toString()}
-                                          />
-                                          <button
-                                            type="submit"
-                                            className="p-2 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
-                                            title={
-                                              bookmark.isArchived
-                                                ? "Unarchive"
-                                                : "Archive"
-                                            }
-                                          >
-                                            {bookmark.isArchived ? (
-                                              <svg
-                                                xmlns="http://www.w3.org/2000/svg"
-                                                className="h-5 w-5 text-blue-500 dark:text-blue-400"
-                                                viewBox="0 0 20 20"
-                                                fill="currentColor"
-                                              >
-                                                <path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4z" />
-                                                <path
-                                                  fillRule="evenodd"
-                                                  d="M3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"
-                                                  clipRule="evenodd"
-                                                />
-                                              </svg>
-                                            ) : (
-                                              <svg
-                                                xmlns="http://www.w3.org/2000/svg"
-                                                className="h-5 w-5"
-                                                fill="none"
-                                                viewBox="0 0 24 24"
-                                                stroke="currentColor"
-                                                strokeWidth="1.5"
-                                              >
-                                                <path
-                                                  strokeLinecap="round"
-                                                  strokeLinejoin="round"
-                                                  d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"
-                                                />
-                                              </svg>
-                                            )}
-                                          </button>
-                                        </Form>
-
-                                        {/* 情報更新ボタン */}
-                                        <Form method="post">
-                                          <input
-                                            type="hidden"
-                                            name="intent"
-                                            value="refresh"
-                                          />
-                                          <input
-                                            type="hidden"
-                                            name="bookmarkId"
-                                            value={bookmark.id}
-                                          />
-                                          <button
-                                            type="submit"
-                                            onClick={(e) => {
-                                              if (
-                                                !confirm(
-                                                  `"「${bookmark.title}」の情報を再取得しますか？\nカテゴリや説明が更新される可能性があります。`
-                                                )
-                                              ) {
-                                                e.preventDefault();
-                                              }
-                                            }}
-                                            className="p-2 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
-                                            title="情報を更新"
-                                          >
-                                            <svg
-                                              xmlns="http://www.w3.org/2000/svg"
-                                              className="h-5 w-5"
-                                              fill="none"
-                                              viewBox="0 0 24 24"
-                                              stroke="currentColor"
-                                              strokeWidth="1.5"
-                                            >
-                                              <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                                              />
-                                            </svg>
-                                          </button>
-                                        </Form>
-
-                                        {/* 編集ボタン */}
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            setEditingBookmark({
-                                              id: bookmark.id,
-                                              title: bookmark.title,
-                                              description: bookmark.description,
-                                              majorCategory:
-                                                bookmark.majorCategory.name,
-                                              minorCategory:
-                                                bookmark.minorCategory.name,
-                                            })
-                                          }
-                                          className="p-2 text-gray-400 hover:text-purple-500 dark:hover:text-purple-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
-                                          title="Edit"
-                                        >
-                                          <svg
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            className="h-5 w-5"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                            strokeWidth="1.5"
-                                          >
-                                            <path
-                                              strokeLinecap="round"
-                                              strokeLinejoin="round"
-                                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                            />
-                                          </svg>
-                                        </button>
-
-                                        {/* 削除ボタン */}
-                                        <Form method="post">
-                                          <input
-                                            type="hidden"
-                                            name="intent"
-                                            value="delete"
-                                          />
-                                          <input
-                                            type="hidden"
-                                            name="bookmarkId"
-                                            value={bookmark.id}
-                                          />
-                                          <button
-                                            type="submit"
-                                            onClick={(e) => {
-                                              if (
-                                                !confirm(
-                                                  `"「${bookmark.title}」を削除しますか？`
-                                                )
-                                              ) {
-                                                e.preventDefault();
-                                              }
-                                            }}
-                                            className="p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                                            title="Delete"
-                                          >
-                                            <svg
-                                              xmlns="http://www.w3.org/2000/svg"
-                                              className="h-5 w-5"
-                                              viewBox="0 0 20 20"
-                                              fill="currentColor"
-                                            >
-                                              <path
-                                                fillRule="evenodd"
-                                                d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                                                clipRule="evenodd"
-                                              />
-                                            </svg>
-                                          </button>
-                                        </Form>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* 挿入位置インジケーター（後） - カード間の右側に表示 */}
-                                  {showAfterLine && (
-                                    <div className="absolute -right-2 top-0 bottom-0 w-1 bg-blue-500 dark:bg-blue-400 z-20 shadow-lg rounded-full" />
-                                  )}
-                                </div>
-                              );
-                            })}
+                            {minor.bookmarks.map((bookmark, index) => (
+                              <BookmarkCardFull
+                                key={bookmark.id}
+                                bookmark={bookmark}
+                                index={index}
+                                isDragging={
+                                  draggedItem?.type === "bookmark" &&
+                                  draggedItem.id === bookmark.id
+                                }
+                                isDragOver={
+                                  dragOverItem?.type === "bookmark" &&
+                                  dragOverItem.id === bookmark.id
+                                }
+                                dragOverPosition={dragOverItem?.position}
+                                onDragStart={handleDragStart}
+                                onDragOver={handleDragOver}
+                                onDrop={handleDrop}
+                                onDragEnd={handleDragEnd}
+                                categoryId={minor.minorCategoryId}
+                                isPinned={false}
+                                onEdit={setEditingBookmark}
+                                isAdmin={loaderData.isAdmin}
+                              />
+                            ))}
                           </div>
                         </div>
                       ))}

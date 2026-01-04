@@ -6,8 +6,10 @@ Cloudflare Workers AI、D1データベース、Drizzle ORMを使った自動カ�
 
 - AI自動分類: Workers AIがURLから大カテゴリ・小カテゴリ・説明文を自動生成
 - スマートカテゴリ: 既存カテゴリとの類似性を考慮してカテゴリを選択・統合
+- ソーシャル認証: GoogleとGitHubによるOAuth 2.0認証（Better Auth）
+- ユーザー分離: ユーザーごとに完全に分離されたブックマーク管理
 - モダンUI: Tailwind CSS v4によるレスポンシブでダークモード対応のデザイン
-- セキュア: Drizzle ORMによるSQLインジェクション対策、CSPヘッダー設定
+- セキュア: Drizzle ORMによるSQLインジェクション対策、CSPヘッダー設定、CSRF保護
 - 高速: Cloudflare Workers上で動作する超高速SPA
 - スケーラブル: D1データベースで大量のブックマークを管理
 
@@ -18,6 +20,7 @@ Cloudflare Workers AI、D1データベース、Drizzle ORMを使った自動カ�
 - データベース: Cloudflare D1 (SQLite)
 - ORM: Drizzle ORM
 - AI: Cloudflare Workers AI (Llama 3.1)
+- 認証: Better Auth (OAuth 2.0)
 
 ## セットアップ
 
@@ -27,7 +30,87 @@ Cloudflare Workers AI、D1データベース、Drizzle ORMを使った自動カ�
 pnpm install
 ```
 
-### 2. D1データベースの作成
+### 2. 環境変数の設定
+
+Better Auth認証に必要な環境変数を設定します。
+
+#### 2.1 Google OAuth設定
+
+1. Google Cloud Consoleで新しいプロジェクトを作成
+2. OAuth 2.0 クライアントIDを作成
+   - アプリケーションの種類: ウェブアプリケーション
+   - 承認済みのリダイレクトURI: `https://your-domain.com/api/auth/callback/google`
+3. クライアントIDとクライアントシークレットを取得
+
+#### 2.2 GitHub OAuth設定
+
+1. GitHubのSettings > Developer settings > OAuth Appsで新しいアプリを作成
+2. Authorization callback URL: `https://your-domain.com/api/auth/callback/github`
+3. クライアントIDとクライアントシークレットを取得
+
+#### 2.3 環境変数の設定
+
+3つの方法から選択できます：
+
+方法A: 1Password Environments（推奨・最も安全）
+
+1Password Environmentsを使用すると、シークレットが安全に管理され、ディスクに保存されません。
+
+前提条件:
+
+- 1Password for Mac/Linuxがインストール済み
+- 1Password Developerが有効化済み
+
+セットアップ手順:
+
+1. 1Password Desktop アプリを開く
+2. Developer > View Environments を選択
+3. New environment をクリックし、`ai-bookmarks-dev`という名前で作成
+4. 環境変数を追加:
+   - `BETTER_AUTH_URL`: `http://localhost:5173`
+   - `BETTER_AUTH_SECRET`: ランダムな文字列（32文字以上推奨）
+   - `GOOGLE_CLIENT_ID`: Google OAuthのクライアントID
+   - `GOOGLE_CLIENT_SECRET`: Google OAuthのクライアントシークレット
+   - `GITHUB_CLIENT_ID`: GitHub OAuthのクライアントID
+   - `GITHUB_CLIENT_SECRET`: GitHub OAuthのクライアントシークレット
+5. Destinations タブで「Local .env file」を選択
+6. ファイルパスにプロジェクトルートの`.dev.vars`を指定
+7. Mount .env file をクリック
+
+これで、1Passwordがアクセス時に自動的に`.dev.vars`ファイルにシークレットを注入します。
+
+方法B: 従来の方法（.dev.varsファイル）
+
+```bash
+# テンプレートをコピー
+cp .dev.vars.example .dev.vars
+
+# .dev.varsを編集して実際の値を入力
+# または
+pnpm run setup:env
+```
+
+本番環境用:
+
+```bash
+pnpm wrangler secret put BETTER_AUTH_SECRET
+pnpm wrangler secret put GOOGLE_CLIENT_SECRET
+pnpm wrangler secret put GITHUB_CLIENT_SECRET
+```
+
+`wrangler.jsonc`にも設定を追加:
+
+```jsonc
+{
+  "vars": {
+    "BETTER_AUTH_URL": "https://your-domain.com",
+    "GOOGLE_CLIENT_ID": "your-google-client-id",
+    "GITHUB_CLIENT_ID": "your-github-client-id",
+  },
+}
+```
+
+### 3. D1データベースの作成
 
 ```bash
 # ローカル開発用データベース
@@ -39,7 +122,7 @@ pnpm wrangler d1 create ai-bookmarks-db --env production
 
 作成されたデータベースIDを`wrangler.jsonc`の`d1_databases[0].database_id`に設定してください。
 
-### 3. マイグレーションの実行
+### 4. マイグレーションの実行
 
 ```bash
 # スキーマからマイグレーションファイルを生成
@@ -52,7 +135,7 @@ pnpm run db:migrate
 pnpm run db:migrate:prod
 ```
 
-### 4. 開発サーバーの起動
+### 5. 開発サーバーの起動
 
 ```bash
 pnpm run dev
@@ -62,71 +145,56 @@ pnpm run dev
 
 ## デプロイ
 
-### 1. Cloudflare Workers へのデプロイ
+### 1. 環境変数の設定（本番環境）
+
+本番環境のシークレットを設定:
+
+```bash
+pnpm wrangler secret put BETTER_AUTH_SECRET
+pnpm wrangler secret put GOOGLE_CLIENT_SECRET
+pnpm wrangler secret put GITHUB_CLIENT_SECRET
+```
+
+`wrangler.jsonc`の`vars`を本番環境のURLに更新:
+
+```jsonc
+{
+  "vars": {
+    "BETTER_AUTH_URL": "https://your-domain.com",
+    "GOOGLE_CLIENT_ID": "your-google-client-id",
+    "GITHUB_CLIENT_ID": "your-github-client-id",
+  },
+}
+```
+
+### 2. Cloudflare Workers へのデプロイ
 
 ```bash
 pnpm run deploy
 ```
 
-### 2. Cloudflare Zero Trustによるアクセス制御
-
-アプリケーションへのアクセスを制御するため、Cloudflare Zero Trustを設定します。
-
-#### 2.1 Cloudflare Zero Trust の有効化
-
-1. Cloudflare Dashboardにログイン
-2. 左サイドバーから Zero Trust を選択
-3. チームを作成（初回のみ）
-
-#### 2.2 Access アプリケーションの作成
-
-1. Zero Trust ダッシュボードで Access → Applications を選択
-2. Add an application をクリック
-3. Self-hosted を選択
-
-Application Configuration:
-
-- Application name: AI Bookmarks
-- Session Duration: 24 hours（お好みで調整）
-- Application domain:
-  - Subdomain: `ai-bookmarks`（Workers のカスタムドメインまたは workers.dev ドメイン）
-  - Domain: `your-domain.workers.dev` または カスタムドメイン
-
-Identity providers:
-
-- Add a Rule をクリック
-- Rule name: Email Authentication
-- Action: Allow
-- Configure rules:
-  - Include: Emails → 許可するメールアドレスを追加
-  - または Emails ending in → `@example.com`（ドメイン全体を許可）
-
-1. Save application をクリック
-
-#### 2.3 wrangler.jsonc の更新（オプション）
+### 3. カスタムドメインの設定（オプション）
 
 カスタムドメインを使用する場合は、`wrangler.jsonc`に`routes`を追加:
 
 ```jsonc
 {
-  // ... 既存の設定
   "routes": [
     {
-      "pattern": "ai-bookmarks.example.com",
+      "pattern": "your-domain.com",
       "custom_domain": true,
     },
   ],
 }
 ```
 
-#### 2.4 動作確認
-
-1. アプリケーションのURLにアクセス
-2. Cloudflare Access のログイン画面が表示されることを確認
-3. 許可されたメールアドレスでログイン
-4. アプリケーションが表示されることを確認
-
 ## 使い方
+
+### 初回ログイン
+
+1. アプリケーションにアクセス
+2. GoogleまたはGitHubでログイン
+3. 初回ログインでユーザーアカウントが自動作成されます
 
 ### ブックマークの追加
 
@@ -135,10 +203,21 @@ Identity providers:
 3. Workers AIが自動的にページタイトル、カテゴリ、説明文を生成
 4. ブックマークが一覧に追加されます
 
-### ブックマークの削除
+### ブックマークの管理
 
-- 各ブックマークカードにマウスホバーすると削除ボタンが表示されます
-- 削除ボタンをクリックして削除
+- スター: お気に入りブックマークにマーク
+- 既読/未読: 読んだブックマークを管理
+- アーカイブ: 使わなくなったブックマークを保管
+- 削除: ブックマークを完全に削除
+
+### アカウント管理
+
+ヘッダーの「設定」リンクから以下の操作が可能です:
+
+- 連携アカウントの表示: GoogleとGitHubアカウントの連携状態を確認
+- アカウントの連携: 新しいアカウントを追加で連携（複数アカウント対応）
+- アカウントの連携解除: 不要なアカウントの連携を解除（最後のアカウントは解除不可）
+- アカウントの削除: 全データを完全削除（確認のため「削除する」と入力が必要）
 
 ### その他のページ
 
@@ -147,29 +226,94 @@ Identity providers:
 
 ## データベーススキーマ
 
-### categories テーブル
+### user テーブル（Better Auth）
+
+| カラム名       | 型      | 説明                           |
+| -------------- | ------- | ------------------------------ |
+| id             | TEXT    | 主キー（UUID）                 |
+| name           | TEXT    | ユーザー名                     |
+| email          | TEXT    | メールアドレス（ユニーク）     |
+| email_verified | BOOLEAN | メール検証済みフラグ           |
+| role           | TEXT    | ロール（admin/user）           |
+| created_at     | INTEGER | 作成日時（UNIXタイムスタンプ） |
+| updated_at     | INTEGER | 更新日時                       |
+
+### session テーブル（Better Auth）
+
+| カラム名   | 型      | 説明                       |
+| ---------- | ------- | -------------------------- |
+| id         | TEXT    | 主キー                     |
+| user_id    | TEXT    | ユーザーID（外部キー）     |
+| expires_at | INTEGER | 有効期限                   |
+| ip_address | TEXT    | IPアドレス（セキュリティ） |
+| user_agent | TEXT    | ユーザーエージェント       |
+| created_at | INTEGER | 作成日時                   |
+| updated_at | INTEGER | 更新日時                   |
+
+### account テーブル（Better Auth - OAuth）
+
+| カラム名                 | 型      | 説明                          |
+| ------------------------ | ------- | ----------------------------- |
+| id                       | TEXT    | 主キー                        |
+| user_id                  | TEXT    | ユーザーID（外部キー）        |
+| account_id               | TEXT    | プロバイダー側のユーザーID    |
+| provider_id              | TEXT    | プロバイダー（google/github） |
+| access_token             | TEXT    | OAuthアクセストークン         |
+| access_token_expires_at  | INTEGER | アクセストークン有効期限      |
+| refresh_token            | TEXT    | OAuthリフレッシュトークン     |
+| refresh_token_expires_at | INTEGER | リフレッシュトークン有効期限  |
+| id_token                 | TEXT    | OpenID Connect IDトークン     |
+| scope                    | TEXT    | OAuthスコープ                 |
+| expires_at               | INTEGER | トークン有効期限              |
+| created_at               | INTEGER | 作成日時                      |
+| updated_at               | INTEGER | 更新日時                      |
+
+注意: このアプリケーションはOAuth認証のみを使用しており、パスワード認証は実装していません。
+
+### categories テーブル（全ユーザー共有カテゴリマスター）
 
 | カラム名   | 型      | 説明                                           |
 | ---------- | ------- | ---------------------------------------------- |
 | id         | INTEGER | 主キー（自動採番）                             |
-| name       | TEXT    | カテゴリ名                                     |
+| name       | TEXT    | カテゴリ名（ユニーク制約）                     |
 | type       | TEXT    | タイプ（major: 大カテゴリ、minor: 小カテゴリ） |
 | parent_id  | INTEGER | 親カテゴリID（小カテゴリの場合のみ）           |
+| icon       | TEXT    | SVGアイコン（AI生成）                          |
 | created_at | INTEGER | 作成日時（UNIXタイムスタンプ）                 |
 
-### bookmarks テーブル
+注意: カテゴリは全ユーザー間で共有され、同じURLには同じカテゴリが適用されます。これによりAI生成コストを削減し、カテゴリの一貫性を保ちます。
 
-| カラム名          | 型      | 説明                                       |
-| ----------------- | ------- | ------------------------------------------ |
-| id                | INTEGER | 主キー（自動採番）                         |
-| url               | TEXT    | ブックマークURL                            |
-| title             | TEXT    | ページタイトル                             |
-| description       | TEXT    | 説明文                                     |
-| major_category_id | INTEGER | 大カテゴリID                               |
-| minor_category_id | INTEGER | 小カテゴリID                               |
-| user_id           | TEXT    | ユーザーID（将来の認証対応用、現在はNULL） |
-| created_at        | INTEGER | 作成日時                                   |
-| updated_at        | INTEGER | 更新日時                                   |
+### urls テーブル（全ユーザー共有URLマスター）
+
+| カラム名          | 型      | 説明                           |
+| ----------------- | ------- | ------------------------------ |
+| id                | INTEGER | 主キー（自動採番）             |
+| url               | TEXT    | URL（ユニーク制約）            |
+| title             | TEXT    | ページタイトル（AI生成）       |
+| description       | TEXT    | 説明文（AI生成）               |
+| major_category_id | INTEGER | 大カテゴリID（外部キー）       |
+| minor_category_id | INTEGER | 小カテゴリID（外部キー）       |
+| created_at        | INTEGER | 作成日時（UNIXタイムスタンプ） |
+| updated_at        | INTEGER | 更新日時                       |
+
+注意: URLとAI生成メタデータ（タイトル、説明、カテゴリ）は全ユーザー間で共有されます。同じURLを複数のユーザーが追加しても、AI処理は初回のみ実行され、以降は既存データを再利用します。
+
+### user_bookmarks テーブル（ユーザー固有のブックマーク設定）
+
+| カラム名      | 型      | 説明                     |
+| ------------- | ------- | ------------------------ |
+| id            | INTEGER | 主キー（自動採番）       |
+| user_id       | TEXT    | ユーザーID（外部キー）   |
+| url_id        | INTEGER | URL ID（外部キー）       |
+| is_starred    | BOOLEAN | スターフラグ             |
+| read_status   | TEXT    | 既読状態（unread/read）  |
+| is_archived   | BOOLEAN | アーカイブフラグ         |
+| display_order | INTEGER | 表示順序                 |
+| version       | INTEGER | 楽観的ロック用バージョン |
+| created_at    | INTEGER | 作成日時                 |
+| updated_at    | INTEGER | 更新日時                 |
+
+注意: ユーザー固有のプロパティ（スター、既読、アーカイブ、表示順）のみを保存します。各ユーザーは同じURLに対して独自の設定を持つことができます。
 
 ## セキュリティ
 
@@ -184,24 +328,24 @@ Identity providers:
 #### 2. XSS（クロスサイトスクリプティング）対策
 
 - Reactの自動エスケープ: すべてのユーザー入力が自動的にエスケープされる
-- DOMPurify: 業界標準のHTMLサニタイザーを使用
-- すべてのHTMLタグとスクリプトを安全に処理
+- sanitize-html: 業界標準のHTMLサニタイザーを使用
+  - バトルテスト済みのライブラリ（週2M+ダウンロード、10年以上のメンテナンス実績）
+  - ホワイトリスト方式による安全な実装（allowedTags: [], allowedAttributes: {}）
+  - 再帰的エスケープモード（disallowedTagsMode: "recursiveEscape"）でネストされた攻撃も防御
+  - 正規表現ではなく適切なHTMLパーサーを使用
 - スクレイピングしたコンテンツからHTMLタグを完全除去
-- XSS攻撃ベクターを自動的に検出・除去
 - CSPヘッダー: Content Security Policyで不正なスクリプト実行を防止
-- `default-src 'self'`: 同一オリジンのみ許可
-- `script-src 'self' 'unsafe-inline'`: インラインスクリプトを最小限に
-- `frame-ancestors 'none'`: クリックジャッキング防止
-- `upgrade-insecure-requests`: HTTPSへの自動アップグレード
-- `block-all-mixed-content`: 混在コンテンツのブロック
-- HTMLタグの除去: スクレイピングしたコンテンツからHTMLタグを完全除去
-- 危険な文字の検出: `<script>`、`onerror`、`onclick`などの検出
+  - `default-src 'self'`: 同一オリジンのみ許可
+  - `script-src 'self' 'unsafe-inline'`: インラインスクリプトを最小限に
+  - `frame-ancestors 'none'`: クリックジャッキング防止
+  - `upgrade-insecure-requests`: HTTPSへの自動アップグレード
+  - `block-all-mixed-content`: 混在コンテンツのブロック
 - セキュリティヘッダー:
-- `X-Content-Type-Options: nosniff`
-- `X-Frame-Options: DENY`
-- `X-XSS-Protection: 1; mode=block`
-- `Permissions-Policy`: 不要な機能の無効化
-- `Strict-Transport-Security`: HTTPS強制（本番環境）
+  - `X-Content-Type-Options: nosniff`
+  - `X-Frame-Options: DENY`
+  - `X-XSS-Protection: 1; mode=block`
+  - `Permissions-Policy`: 不要な機能の無効化
+  - `Strict-Transport-Security`: HTTPS強制（本番環境）
 
 #### 3. Prompt Injection対策
 
@@ -234,12 +378,37 @@ Identity providers:
 - エラーハンドリング: 詳細なエラー情報の漏洩防止
 - アクセス制御: Cloudflare Zero Trust統合
 
+### 認証とアクセス制御
+
+- Better Authによる認証システム
+- GoogleとGitHubのOAuth 2.0認証（パスワード認証は非対応）
+- サーバーサイドセッション管理（7日間有効、1日ごとに更新）
+- CSRF保護（Origin検証、state/PKCE検証、SameSite=Lax）
+- セキュアクッキー（httpOnly, secure）
+- IPトラッキングによる不正アクセス検出
+- レート制限（60秒で10リクエスト）
+
+### データの分離
+
+- すべてのクエリで`WHERE user_id = ?`によるユーザー分離を実施
+- IDOR（Insecure Direct Object Reference）対策
+- アカウント管理API（連携解除・削除）でのユーザーID検証
+- 最後のアカウント保護（削除不可）
+- アカウント削除時のカスケード削除（bookmarks, categories, accounts, sessions）
+
 ### セキュリティベストプラクティス
 
 #### 本番環境での推奨設定
 
-1. Cloudflare Zero Trustを有効化してアクセス制御を実装
-2. Rate Limitingを設定（Cloudflare Workers設定で）:
+1. Better Auth認証を有効化
+   - OAuth 2.0による安全な認証
+   - PKCE（Proof Key for Code Exchange）による保護
+   - CSRF保護の有効化
+   - セキュアクッキー（httpOnly, secure, sameSite）
+
+2. Rate Limitingを設定:
+   - Better Auth組み込みのレート制限（デフォルト: 60秒で10リクエスト）
+   - Cloudflare Workers設定でCPU制限:
 
    ```jsonc
    // wrangler.jsonc
@@ -265,23 +434,26 @@ Identity providers:
 
 ## 将来の拡張
 
-### ユーザー認証の追加
+### 追加機能の候補
 
-現在は全体でCloudflare Zero Trustによるアクセス制御のみですが、将来的にユーザーごとのブックマーク管理を実装する場合:
-
-1. 認証プロバイダー（Cloudflare Access、Auth0等）を統合
-2. `bookmarks.user_id`に実際のユーザーIDを設定
-3. クエリに`WHERE user_id = ?`フィルタを追加
-4. マイグレーションで`user_id`を`NOT NULL`制約に変更
-
-```sql
--- 将来のマイグレーション例
-ALTER TABLE bookmarks ALTER COLUMN user_id SET NOT NULL;
-```
+- ブックマーク共有機能
+- タグ機能
+- 全文検索
+- ブックマークのエクスポート/インポート
+- カテゴリのカスタマイズ
+- ブックマークのメモ機能
+- AIによる関連ブックマークの推薦
 
 ## 開発コマンド
 
 ```bash
+# 環境変数のセットアップ（初回のみ）
+# 方法A: 従来の方法
+pnpm run setup:env
+
+# 方法B: 1Password CLI
+pnpm run setup:env:1p
+
 # 開発サーバー起動
 pnpm run dev
 
@@ -290,6 +462,18 @@ pnpm run build
 
 # 型チェック
 pnpm run typecheck
+
+# コードフォーマット
+pnpm run format
+
+# フォーマットチェック
+pnpm run format:check
+
+# Lintチェック
+pnpm run lint
+
+# Lint自動修正
+pnpm run lint:fix
 
 # D1マイグレーション生成
 pnpm run db:generate

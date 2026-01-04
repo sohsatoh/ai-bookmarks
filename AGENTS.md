@@ -2,7 +2,7 @@
 
 このドキュメントは、AI Bookmarksプロジェクトに取り組むAI Agentsのための包括的なガイドラインです。
 
-## 📋 基本方針
+## 基本方針
 
 ### 言語について
 
@@ -12,7 +12,7 @@
 
 ### ドキュメント作成について
 
-- 絵文字や強調記法は原則使用しない（見出しの視覚的マーカーとしての使用は例外）
+- 絵文字や強調記法は原則使用しない
 - 読みやすい記載を心がける
 - 簡潔で明確な表現を使用する
 - 箇条書きを活用して情報を整理する
@@ -65,16 +65,17 @@
    - セキュリティに関わる変更がある場合、SECURITY.mdを更新
    - このAGENTS.mdに新しいベストプラクティスがあれば追記
 
-## 🏗️ プロジェクト構成
+## プロジェクト構成
 
 ### 技術スタック
 
-- **フロントエンド**: React 19 + React Router 7 + Tailwind CSS v4
-- **バックエンド**: Cloudflare Workers
-- **データベース**: Cloudflare D1 (SQLite)
-- **ORM**: Drizzle ORM
-- **AI**: Cloudflare Workers AI (@cf/openai/gpt-oss-120b)
-- **パッケージマネージャー**: pnpm
+- フロントエンド: React 19 + React Router 7 + Tailwind CSS v4
+- バックエンド: Cloudflare Workers
+- データベース: Cloudflare D1 (SQLite)
+- ORM: Drizzle ORM
+- AI: Cloudflare Workers AI (@cf/openai/gpt-oss-120b)
+- 認証: Better Auth (OAuth 2.0)
+- パッケージマネージャー: pnpm
 
 ### ディレクトリ構造
 
@@ -104,8 +105,24 @@ ai-bookmarks/
 
 - `app/constants.ts`: すべての設定値（AI、セキュリティ、UI等）
 - `app/db/schema.ts`: データベーススキーマ定義
+  - 認証テーブル: Better Auth用（passwordフィールドなし）
+  - `categories`: 全ユーザー共有のカテゴリマスター（userIdなし）
+  - `urls`: 全ユーザー共有のURLマスターとAI生成メタデータ
+  - `user_bookmarks`: ユーザー固有のブックマーク設定（スター、既読、アーカイブ、表示順）
+- `app/services/db.server.ts`: データベース操作レイヤー
+  - URL重複チェックとAI呼び出しスキップ機能
+  - カテゴリとURLの共有管理
+  - ユーザーブックマークの分離管理
+- `app/services/ai.server.ts`: AI処理（Workers AI）
+  - 既存カテゴリとの類似性を考慮
+  - 2回目以降のURL追加ではAI呼び出しをスキップ
+- `app/services/auth.server.ts`: Better Auth認証処理
 - `app/services/security.server.ts`: セキュリティ関連の処理
+- `app/routes/settings.tsx`: アカウント管理UI
+- `app/routes/api.account.unlink.tsx`: アカウント連携解除API
+- `app/routes/api.account.delete.tsx`: アカウント削除API
 - `wrangler.jsonc`: Cloudflare Workers設定
+- `.dev.vars`: ローカル開発用環境変数（Gitにコミットしない）
 
 ### Wranglerコマンドの実行方法
 
@@ -122,9 +139,9 @@ wrangler types
 npx wrangler types
 ```
 
-**注意**: `package.json`のscriptsに定義されているコマンド（`pnpm run dev`、`pnpm run build`等）を使用する場合は、内部で自動的にwranglerが実行されるため、このプレフィックスは不要です。
+注意: `package.json`のscriptsに定義されているコマンド（`pnpm run dev`、`pnpm run build`等）を使用する場合は、内部で自動的にwranglerが実行されるため、このプレフィックスは不要です。
 
-## 🔒 セキュリティガイドライン
+## セキュリティガイドライン
 
 ### 絶対に守るべきこと
 
@@ -135,6 +152,7 @@ npx wrangler types
 
 ```typescript
 // ✅ 正しい例
+const result = await db.select().from(bookmarks).where(eq(bookmarks.id, id));
 const result = await db.select().from(bookmarks).where(eq(bookmarks.id, id));
 
 // ❌ 間違った例
@@ -217,7 +235,68 @@ if (title.length > AI_CONFIG.TITLE_MAX_LENGTH) {
 - Permissions-Policy
 - Referrer-Policy
 
-## 💻 コーディング規約
+### 認証とアクセス制御
+
+- Better Authによる認証: GoogleとGitHubのOAuth 2.0（パスワード認証は非対応）
+- セッション管理: サーバーサイドセッション（7日間有効、1日ごとに更新）
+- CSRF保護: Origin検証、state/PKCE検証、SameSite=Lax
+- ユーザー分離: すべてのクエリに`WHERE user_id = ?`フィルタを必須
+- セキュアクッキー: httpOnly, secure（本番環境）
+- IPトラッキング: 不正アクセス検出用
+- レート制限: 60秒で10リクエスト（Better Auth組み込み）
+
+```typescript
+// ✅ 正しい例: ユーザーIDでフィルタリング
+const bookmarks = await db
+  .select()
+  .from(bookmarks)
+  .where(eq(bookmarks.userId, session.user.id));
+
+// ❌ 間違った例: ユーザーIDフィルタなし（他のユーザーのデータが見える）
+const bookmarks = await db.select().from(bookmarks);
+```
+
+### アカウント管理のセキュリティ
+
+- アカウント連携解除:
+  - セッション検証（`requireAuth`）必須
+  - ユーザーID検証（IDOR対策）
+  - 最後のアカウント保護（削除不可）
+  - WHERE句でユーザーIDフィルタリング必須
+- アカウント削除:
+  - すべての削除操作に`WHERE userId = ?`を明記
+  - カスケード削除順序: bookmarks → categories → accounts → sessions → user
+  - セッション破棄とログアウトリダイレクト
+  - 確認ダイアログ（「削除する」入力必須）
+
+```typescript
+// ✅ 正しい例: アカウント連携解除
+const session = await requireAuth(request, context);
+const userAccounts = await db
+  .select()
+  .from(accounts)
+  .where(eq(accounts.userId, session.user.id));
+
+if (userAccounts.length <= 1) {
+  return data({ error: "最後のアカウントは削除できません" }, { status: 400 });
+}
+
+const targetAccount = userAccounts.find((acc) => acc.id === accountId);
+if (!targetAccount) {
+  return data({ error: "不正なリクエスト" }, { status: 403 });
+}
+
+await db.delete(accounts).where(eq(accounts.id, accountId));
+
+// ✅ 正しい例: アカウント削除
+await db.delete(bookmarks).where(eq(bookmarks.userId, session.user.id));
+await db.delete(categories).where(eq(categories.userId, session.user.id));
+await db.delete(accounts).where(eq(accounts.userId, session.user.id));
+await db.delete(sessions).where(eq(sessions.userId, session.user.id));
+await db.delete(users).where(eq(users.id, session.user.id));
+```
+
+## コーディング規約
 
 ### コードフォーマットとLint
 
@@ -229,6 +308,7 @@ if (title.length > AI_CONFIG.TITLE_MAX_LENGTH) {
   - 保存時に自動修正（VS Codeで設定済み）
   - 手動実行: `pnpm run lint`
   - 自動修正: `pnpm run lint:fix`
+- **VS Code拡張機能**:
 - **VS Code拡張機能**:
   - `esbenp.prettier-vscode`（Prettier）
   - `dbaeumer.vscode-eslint`（ESLint）
@@ -272,6 +352,37 @@ const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, onDelete }) => {
 };
 ```
 
+### React Router 7
+
+- Route型定義: `Route.LoaderArgs`、`Route.ActionArgs`を使用
+- レスポンス: `data()`関数を使用（`json()`は非推奨）
+- リダイレクト: `redirect()`関数を使用
+
+```typescript
+// ✅ 正しい例
+import type { Route } from "./+types/api.account.unlink";
+import { data, redirect } from "react-router";
+
+export async function action({ request, context }: Route.ActionArgs) {
+  const session = await requireAuth(request, context);
+
+  // エラーレスポンス
+  if (error) {
+    return data({ error: "エラーメッセージ" }, { status: 400 });
+  }
+
+  // 成功時のリダイレクト
+  return redirect("/settings");
+}
+
+// ❌ 間違った例（React Router 7では非推奨）
+import { json } from "@remix-run/cloudflare";
+
+export async function action({ request }) {
+  return json({ error: "エラー" });
+}
+```
+
 ### データベース操作
 
 - **ORM使用**: Drizzle ORMを必ず使用
@@ -281,6 +392,7 @@ const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, onDelete }) => {
 ```typescript
 // ✅ 正しい例
 try {
+  const bookmark = await db.insert(bookmarks).values(newBookmark).returning();
   const bookmark = await db.insert(bookmarks).values(newBookmark).returning();
   return bookmark[0];
 } catch (error) {
@@ -302,6 +414,7 @@ try {
 } catch (error) {
   console.error("詳細なエラー情報:", error);
   return json({ error: "処理に失敗しました" }, { status: 500 });
+  return json({ error: "処理に失敗しました" }, { status: 500 });
 }
 ```
 
@@ -315,10 +428,12 @@ try {
 /**
  * ブックマークを追加する
  *
+ *
  * @param url - ブックマークするURL
  * @param context - 実行コンテキスト（D1、AI等）
  * @returns 作成されたブックマーク
  * @throws {Error} URL検証に失敗した場合
+ *
  *
  * 注意: この関数は以下の処理を行います
  * 1. URLの検証（SSRF対策）
@@ -330,11 +445,15 @@ async function addBookmark(
   url: string,
   context: AppLoadContext
 ): Promise<Bookmark> {
+async function addBookmark(
+  url: string,
+  context: AppLoadContext
+): Promise<Bookmark> {
   // 実装
 }
 ```
 
-## 🧪 テストとビルド
+## テストとビルド
 
 ### ビルドコマンド
 
@@ -378,7 +497,13 @@ pnpm run db:migrate:prod
 
 # Drizzle Studio起動（GUI）
 pnpm run db:studio
+
+# マイグレーションの完全リセット（開発時のみ）
+rm -rf migrations && mkdir migrations && pnpm run db:generate
+rm -rf .wrangler/state && pnpm run db:migrate
 ```
+
+注意: マイグレーションが破損した場合や大きなスキーマ変更がある場合、完全リセットを推奨します。本番環境では慎重に実施してください。
 
 ### ビルド前の確認事項
 
@@ -389,7 +514,7 @@ pnpm run db:studio
 - [ ] 追加したコードにセキュリティ上の問題がない
 - [ ] README.mdまたはSECURITY.mdの更新が必要な場合は更新済み
 
-## 📝 コミットガイドライン
+## コミットガイドライン
 
 ### コミットメッセージ
 
@@ -409,7 +534,7 @@ git commit -m "fix bug"
 git commit -m "Add bookmark deletion feature" # 英語
 ```
 
-## 🔧 依存関係管理
+## 依存関係管理
 
 ### パッケージの追加
 
@@ -434,7 +559,7 @@ pnpm audit
 - **テスト**: 更新後は必ずビルドとテストを実行
 - **BREAKING CHANGES**: 破壊的変更がないか確認
 
-## 🎯 ベストプラクティス
+## ベストプラクティス
 
 ### 定数の使用
 
@@ -484,7 +609,7 @@ async function fetchData() {
 - 適切なARIA属性を付与
 - キーボード操作に対応
 
-## 🚨 よくある落とし穴
+## よくある落とし穴
 
 ### 1. Wranglerコマンドの実行
 
@@ -523,7 +648,7 @@ npx wrangler types
 - すべての時刻はUTCで保存
 - 表示時にローカルタイムゾーンに変換
 
-## 📚 参考リソース
+## 参考リソース
 
 ### 公式ドキュメント
 
@@ -539,17 +664,22 @@ npx wrangler types
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/)
 - [OWASP Cheat Sheet Series](https://cheatsheetseries.owasp.org/)
 - [Prompt Injection Defense](https://learnprompting.org/docs/prompt_hacking/defensive_measures/introduction)
+- [Better Auth Documentation](https://www.better-auth.com/docs)
+- [OAuth 2.0 Security Best Practices](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-security-topics)
 
-## 📞 トラブルシューティング
+## トラブルシューティング
 
 ### ビルドが失敗する
 
 1. `node_modules`を削除して再インストール
+
    ```bash
    rm -rf node_modules pnpm-lock.yaml
    pnpm install
    ```
+
 2. TypeScriptの型エラーを確認
+
    ```bash
    pnpm run typecheck
    ```
@@ -557,6 +687,7 @@ npx wrangler types
 ### D1マイグレーションが失敗する
 
 1. ローカルD1データベースをリセット
+
    ```bash
    rm -rf .wrangler/state
    pnpm run db:migrate
@@ -568,7 +699,9 @@ npx wrangler types
 2. D1データベースIDが正しいか確認
 3. Cloudflareアカウントの権限を確認
 
-## 🔄 更新履歴
+## 更新履歴
 
-- 2026-01-04: PrettierとESLintの設定を追加 - VS Code拡張機能推奨、フォーマット・Lintルールを業界標準に設定
-- 2026-01-03: 初版作成 - 包括的な開発ガイドラインを作成
+- 2026-01-04: アカウント管理機能を追加（設定ページ、連携解除、削除）、passwordフィールド削除、マイグレーション完全リセット、React Router 7パターン追加
+- 2026-01-04: Better Auth認証機能を追加、ユーザー分離を実装、新機能追加（starred、read_status、archived）
+- 2026-01-04: PrettierとESLintの設定を追加、VS Code拡張機能推奨、フォーマット・Lintルールを業界標準に設定
+- 2026-01-03: 初版作成、包括的な開発ガイドラインを作成

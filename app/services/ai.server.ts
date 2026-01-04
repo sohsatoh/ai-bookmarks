@@ -4,9 +4,10 @@ import { AI_CONFIG } from "~/constants";
 
 /**
  * Workers AIを使用してURLからメタデータを生成
- * - 既存のカテゴリとの類似性を考慮してカテゴリを選択
+ * - 既存のカテゴリとの類似性を考慮してカテゴリを選択（全ユーザー共有）
  * - 短い説明文を生成
  * - Prompt Injection対策済み
+ * - 同じURLの2回目以降はAI呼び出しをスキップして既存データを再利用
  */
 export async function generateBookmarkMetadata(
   ai: Ai,
@@ -69,26 +70,45 @@ export async function generateBookmarkMetadata(
 内容: ${sanitizedContent}${existingMajorList}${existingMinorList}`;
 
   try {
+    // eslint-disable-next-line no-console
     console.log(
       `[AI] Starting metadata generation for URL: ${url.substring(0, 50)}...`
     );
 
-    // OpenAI GPT 120Bモデルを使用（input形式）
-    const response = await ai.run(AI_CONFIG.MODEL_NAME, {
-      instructions: systemPrompt,
-      input: userInput,
-      max_tokens: AI_CONFIG.MAX_TOKENS,
-    });
+    let response: unknown;
+    try {
+      // OpenAI GPT 120Bモデルを使用（input形式）
+      response = await ai.run(AI_CONFIG.MODEL_NAME, {
+        instructions: systemPrompt,
+        input: userInput,
+        max_tokens: AI_CONFIG.MAX_TOKENS,
+      });
+    } catch (aiError) {
+      console.error(`[AI] API call failed:`, aiError);
+      console.error(
+        `[AI] Error details:`,
+        aiError instanceof Error
+          ? {
+              message: aiError.message,
+              stack: aiError.stack,
+            }
+          : String(aiError)
+      );
+      throw new Error(
+        `AI APIの呼び出しに失敗しました: ${aiError instanceof Error ? aiError.message : String(aiError)}`
+      );
+    }
 
-    console.log(
-      `[AI] Raw response received:`,
-      JSON.stringify(response).substring(0, 200) + "..."
-    );
+    // eslint-disable-next-line no-console
+    console.log(`[AI] Raw response type:`, typeof response);
+    // eslint-disable-next-line no-console
+    console.log(`[AI] Raw response:`, response);
 
     // AI応答の検証
     const validation = validateAiResponse(response);
     if (!validation.valid) {
       console.error(`[AI] Validation failed:`, validation.error);
+      console.error(`[AI] Response was:`, response);
       throw new Error(validation.error);
     }
 
@@ -98,23 +118,35 @@ export async function generateBookmarkMetadata(
       responseText = response;
     } else if (response && typeof response === "object") {
       // output配列からstatus: "completed"のmessageタイプのオブジェクトを探す
-      const output = (response as any).output;
+      const output = (
+        response as {
+          output?: Array<{
+            type?: string;
+            status?: string;
+            content?: Array<{ type?: string; text?: string } | string>;
+          }>;
+        }
+      ).output;
       if (Array.isArray(output)) {
         const messageObj = output.find(
-          (item: any) => item.type === "message" && item.status === "completed"
+          (item) => item.type === "message" && item.status === "completed"
         );
         if (messageObj?.content && Array.isArray(messageObj.content)) {
           // content配列からtype: "output_text"のアイテムを取得
           const contentItem = messageObj.content.find(
-            (item: any) =>
-              item.type === "output_text" ||
-              item.type === "text" ||
+            (item) =>
+              (typeof item === "object" &&
+                (item.type === "output_text" || item.type === "text")) ||
               typeof item === "string"
           );
           responseText =
             typeof contentItem === "string"
               ? contentItem
-              : contentItem?.text || "";
+              : (
+                  contentItem as {
+                    text?: string;
+                  }
+                )?.text || "";
         }
       }
       // フォールバック: 旧形式のresponseプロパティ
@@ -128,6 +160,7 @@ export async function generateBookmarkMetadata(
       throw new Error("AI応答からテキストを抽出できませんでした");
     }
 
+    // eslint-disable-next-line no-console
     console.log(`[AI] Extracted text:`, responseText.substring(0, 200));
 
     // JSONブロックを抽出（```json または { で始まるパターン）
@@ -141,8 +174,18 @@ export async function generateBookmarkMetadata(
       throw new Error("AI応答からJSONを抽出できませんでした");
     }
 
-    const metadata = JSON.parse(jsonMatch[1]) as AIGeneratedMetadata;
-    console.log(`[AI] Parsed metadata:`, metadata);
+    let metadata: AIGeneratedMetadata;
+    try {
+      metadata = JSON.parse(jsonMatch[1]) as AIGeneratedMetadata;
+      // eslint-disable-next-line no-console
+      console.log(`[AI] Parsed metadata:`, metadata);
+    } catch (parseError) {
+      console.error(`[AI] JSON parse error:`, parseError);
+      console.error(`[AI] Failed to parse:`, jsonMatch[1]);
+      throw new Error(
+        `JSONパースに失敗しました: ${parseError instanceof Error ? parseError.message : String(parseError)}`
+      );
+    }
 
     // バリデーションとサニタイズ
     if (
@@ -165,6 +208,7 @@ export async function generateBookmarkMetadata(
       throw new Error("不正な応答が検出されました");
     }
 
+    // eslint-disable-next-line no-console
     console.log(`[AI] Successfully generated metadata`);
     return {
       majorCategory: metadata.majorCategory.trim().slice(0, 150),

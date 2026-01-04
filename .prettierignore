@@ -1,0 +1,36 @@
+# Dependencies
+node_modules
+pnpm-lock.yaml
+
+# Build outputs
+dist
+build
+.output
+.wrangler
+
+# Cache
+.cache
+.vite
+.turbo
+
+# Database
+*.db
+*.sqlite
+.wrangler/state
+
+# Environment
+.env
+.env.*
+.dev.vars
+
+# Generated files
+*.gen.ts
+*.d.ts
+worker-configuration.d.ts
+
+# Migrations
+migrations
+
+# Other
+coverage
+.DS_Store

@@ -183,28 +183,33 @@ export default function Login() {
         <div className="space-y-4">
           {/* パスキーログインボタン */}
           {isPasskeySupported && (
-            <button
-              onClick={handlePasskeyLogin}
-              type="button"
-              className="w-full flex items-center justify-center gap-3 px-4 py-3 border-2 border-indigo-500 rounded-lg shadow-sm bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-            >
-              <svg
-                className="w-5 h-5 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+            <div className="space-y-3">
+              <button
+                onClick={handlePasskeyLogin}
+                type="button"
+                className="w-full flex items-center justify-center gap-3 px-4 py-3 border-2 border-indigo-500 rounded-lg shadow-sm bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                />
-              </svg>
-              <span className="text-sm font-medium text-white">
-                パスキーでログイン
-              </span>
-            </button>
+                <svg
+                  className="w-5 h-5 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                  />
+                </svg>
+                <span className="text-sm font-medium text-white">
+                  パスキーでログイン
+                </span>
+              </button>
+              <p className="text-xs text-gray-500 text-center">
+                パスキーが未登録の場合は、まずGoogleまたはGitHubでログインし、設定ページからパスキーを追加してください
+              </p>
+            </div>
           )}
 
           {/* 区切り線 */}

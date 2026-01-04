@@ -45,6 +45,14 @@ import {
 import { handleAddBookmark } from "~/actions/add-bookmark-action.server";
 import { authClient } from "~/lib/auth-client";
 
+/**
+ * base64url変換関数（WebAuthn Signal API用）
+ * base64url形式: +と/を-と_に変換し、末尾の=を削除
+ */
+const toBase64Url = (str: string): string => {
+  return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+};
+
 export function meta(_args: Route.MetaArgs) {
   const title = "ホーム - AI Bookmarks";
   const description =
@@ -275,7 +283,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
               window.PublicKeyCredential as any
             ).signalAllAcceptedCredentials({
               rpId: window.location.hostname,
-              userId: btoa(loaderData.user.email), // base64url encode
+              userId: toBase64Url(loaderData.user.email),
               allAcceptedCredentialIds: credentialIds,
             });
 
@@ -285,7 +293,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                 window.PublicKeyCredential as any
               ).signalCurrentUserDetails({
                 rpId: window.location.hostname,
-                userId: btoa(loaderData.user.email),
+                userId: toBase64Url(loaderData.user.email),
                 name: loaderData.user.email,
                 displayName: loaderData.user.email,
               });

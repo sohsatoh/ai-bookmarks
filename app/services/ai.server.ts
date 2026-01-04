@@ -15,7 +15,11 @@ export async function generateBookmarkMetadata(
   pageTitle: string,
   pageDescription: string,
   pageContent: string,
-  existingCategories: { major: string[]; minor: string[] }
+  existingCategories: {
+    major: string[];
+    minor: string[];
+    hierarchy: { major: string; minors: string[] }[];
+  }
 ): Promise<AIGeneratedMetadata> {
   // コンテンツ長を拡張
   const sanitizedTitle = sanitizeForPrompt(
@@ -38,7 +42,18 @@ export async function generateBookmarkMetadata(
     sanitizeForPrompt(cat, AI_CONFIG.CATEGORY_MAX_LENGTH)
   );
 
-  // 既存カテゴリのフォーマットを改善
+  // 親子関係を明示したカテゴリリストを作成
+  let hierarchyList = "";
+  if (existingCategories.hierarchy.length > 0) {
+    hierarchyList = `\n\n【既存カテゴリの階層構造】\n以下の大カテゴリと小カテゴリの組み合わせから選択してください：\n${existingCategories.hierarchy
+      .map(
+        (item, i) =>
+          `${i + 1}. ${sanitizeForPrompt(item.major, AI_CONFIG.CATEGORY_MAX_LENGTH)}\n   └ 小カテゴリ: ${item.minors.length > 0 ? item.minors.map((m) => sanitizeForPrompt(m, AI_CONFIG.CATEGORY_MAX_LENGTH)).join(", ") : "（未定義）"}`
+      )
+      .join("\n")}`;
+  }
+
+  // 既存カテゴリのフォーマットを改善（後方互換性のため残す）
   const existingMajorList =
     sanitizedMajorCats.length > 0
       ? `\n利用可能な大カテゴリ（このリストから選択してください）:\n${sanitizedMajorCats.map((c, i) => `${i + 1}. ${c}`).join("\n")}`
@@ -67,7 +82,7 @@ export async function generateBookmarkMetadata(
   const userInput = `【分類対象】
 タイトル: ${sanitizedTitle}
 ページ説明: ${sanitizedDescription}
-内容: ${sanitizedContent}${existingMajorList}${existingMinorList}`;
+内容: ${sanitizedContent}${hierarchyList}${existingMajorList}${existingMinorList}`;
 
   try {
     // eslint-disable-next-line no-console

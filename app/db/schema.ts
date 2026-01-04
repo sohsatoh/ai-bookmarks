@@ -80,7 +80,7 @@ export const rateLimits = sqliteTable("rate_limit", {
   id: text("id").primaryKey(),
   key: text("key").notNull().unique(),
   count: integer("count").notNull(),
-  lastRequest: integer("last_request", { mode: "timestamp" }).notNull(),
+  lastRequest: integer("last_request").notNull(), // Unixタイムスタンプ（ミリ秒）
 });
 
 // カテゴリテーブル（大カテゴリ・小カテゴリを統合）

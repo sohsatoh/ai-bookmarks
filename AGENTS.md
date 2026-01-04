@@ -12,7 +12,7 @@
 
 ### ドキュメント作成について
 
-- 絵文字や強調記法は原則使用しない（見出しの視覚的マーカーとしての使用は例外）
+- 絵文字や強調記法は原則使用しない
 - 読みやすい記載を心がける
 - 簡潔で明確な表現を使用する
 - 箇条書きを活用して情報を整理する
@@ -545,11 +545,14 @@ npx wrangler types
 ### ビルドが失敗する
 
 1. `node_modules`を削除して再インストール
+
    ```bash
    rm -rf node_modules pnpm-lock.yaml
    pnpm install
    ```
+
 2. TypeScriptの型エラーを確認
+
    ```bash
    pnpm run typecheck
    ```
@@ -557,6 +560,7 @@ npx wrangler types
 ### D1マイグレーションが失敗する
 
 1. ローカルD1データベースをリセット
+
    ```bash
    rm -rf .wrangler/state
    pnpm run db:migrate

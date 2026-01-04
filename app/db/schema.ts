@@ -13,6 +13,9 @@ export const users = sqliteTable("user", {
   emailVerified: integer("email_verified", { mode: "boolean" })
     .notNull()
     .default(false),
+  role: text("role", { enum: ["admin", "user"] })
+    .notNull()
+    .default("user"), // デフォルトはuser、adminは手動設定
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
@@ -74,6 +77,9 @@ export const verifications = sqliteTable("verification", {
 // カテゴリテーブル（大カテゴリ・小カテゴリを統合）
 export const categories = sqliteTable("categories", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }), // ユーザーIDで分離
   name: text("name").notNull(),
   type: text("type", { enum: ["major", "minor"] }).notNull(), // major: 大カテゴリ, minor: 小カテゴリ
   parentId: integer("parent_id").references(
@@ -90,6 +96,9 @@ export const categories = sqliteTable("categories", {
 // ブックマークテーブル
 export const bookmarks = sqliteTable("bookmarks", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }), // ユーザーIDで分離
   url: text("url").notNull(),
   title: text("title").notNull(),
   description: text("description").notNull(),
@@ -110,8 +119,6 @@ export const bookmarks = sqliteTable("bookmarks", {
     .default(false),
   displayOrder: integer("display_order").notNull().default(0), // 表示順序
   version: integer("version").notNull().default(0), // 楽観的ロック用バージョン
-  // 将来のユーザー分離対応用（現在はNULL許容）
-  userId: text("user_id"),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),

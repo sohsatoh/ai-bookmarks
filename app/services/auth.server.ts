@@ -18,7 +18,9 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import type { AppLoadContext } from "react-router";
 import { drizzle } from "drizzle-orm/d1";
+import { eq } from "drizzle-orm";
 import * as schema from "~/db/schema";
+import { users } from "~/db/schema";
 
 /**
  * Better Auth設定
@@ -124,13 +126,38 @@ export function createAuth(context: AppLoadContext) {
       },
     },
 
-    // トラストされたOrigin（オプション - 必要に応じて追加）
-    trustedOrigins: [context.cloudflare.env.BETTER_AUTH_URL],
+    // トラストされたOrigin（セキュリティ強化）
+    trustedOrigins: [
+      context.cloudflare.env.BETTER_AUTH_URL, // 本番/開発URL
+      "https://*.pages.dev",                   // Cloudflare Pagesプレビュー環境
+      "http://localhost:*",                    // ローカル開発（任意ポート）
+    ],
+
+    // Rate Limiting（ブルートフォース攻撃対策）
+    rateLimit: {
+      enabled: true,
+      window: 60,        // 60秒のウィンドウ
+      max: 10,           // ウィンドウ内で10リクエスト
+      storage: "database", // D1に保存
+    },
+
+    // クッキー名のカスタマイズ（フィンガープリンティング対策）
+    cookies: {
+      sessionToken: {
+        name: "__Host-auth.session",
+        attributes: {
+          httpOnly: true,
+          secure: context.cloudflare.env.BETTER_AUTH_URL.startsWith("https://"),
+          sameSite: "lax",
+          path: "/",
+        },
+      },
+    },
   });
 }
 
 /**
- * セッションからユーザー情報を取得
+ * セッションからユーザー情報を取得（roleを含む完全なユーザー情報）
  *
  * @param request - Request オブジェクト
  * @param context - AppLoadContext
@@ -144,7 +171,30 @@ export async function getSession(request: Request, context: AppLoadContext) {
       headers: request.headers,
     });
 
-    return session;
+    if (!session) {
+      return null;
+    }
+
+    // DBから完全なユーザー情報（role含む）を取得
+    const db = drizzle(context.cloudflare.env.DB);
+    const userResult = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, session.user.id))
+      .limit(1);
+
+    if (userResult.length === 0) {
+      return null;
+    }
+
+    // セッション情報にDBのユーザー情報をマージ
+    return {
+      ...session,
+      user: {
+        ...session.user,
+        role: userResult[0].role,
+      },
+    };
   } catch (error) {
     console.error("セッション取得エラー:", error);
     return null;
@@ -163,6 +213,36 @@ export async function requireAuth(request: Request, context: AppLoadContext) {
 
   if (!session) {
     throw new Response("認証が必要です", { status: 401 });
+  }
+
+  return session;
+}
+
+/**
+ * ユーザーがadmin権限を持っているか確認
+ *
+ * @param session - セッションオブジェクト
+ * @returns admin権限がある場合true
+ */
+export function hasAdminRole(
+  session: { user: { role?: string } } | null
+): boolean {
+  return session?.user?.role === "admin";
+}
+
+/**
+ * admin権限が必要な操作で使用
+ *
+ * @param request - Request オブジェクト
+ * @param context - AppLoadContext
+ * @returns admin権限がある場合、セッションを返す
+ * @throws admin権限がない場合、403エラー
+ */
+export async function requireAdmin(request: Request, context: AppLoadContext) {
+  const session = await requireAuth(request, context);
+
+  if (!hasAdminRole(session)) {
+    throw new Response("管理者権限が必要です", { status: 403 });
   }
 
   return session;

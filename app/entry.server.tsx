@@ -65,9 +65,16 @@ export default async function handleRequest(
     "geolocation=(), microphone=(), camera=()"
   );
 
-  // HSTS（本番環境のみ推奨）
-  // 注: 本番環境では手動で有効化することを推奨
-  // responseHeaders.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+  // HSTS（HTTP Strict Transport Security）
+  // HTTPS接続を強制し、中間者攻撃（MITM）を防止
+  // 本番環境でHTTPSが有効な場合にのみ設定
+  const url = new URL(request.url);
+  if (url.protocol === "https:") {
+    responseHeaders.set(
+      "Strict-Transport-Security",
+      "max-age=31536000; includeSubDomains; preload"
+    );
+  }
 
   return new Response(body, {
     headers: responseHeaders,

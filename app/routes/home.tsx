@@ -1,4 +1,4 @@
-import { Form, useNavigation, useRevalidator, useSubmit } from "react-router";
+import { Form, useNavigation, useRevalidator, useSubmit, redirect } from "react-router";
 import { useEffect, useState, useRef } from "react";
 import type { Route } from "./+types/home";
 import {
@@ -29,8 +29,7 @@ import { Header } from "~/components/Header";
 import { Footer } from "~/components/Footer";
 import { UI_CONFIG } from "~/constants";
 import type { BookmarkWithCategories } from "~/types/bookmark";
-import { getSession } from "~/services/auth.server";
-import { redirect } from "react-router";
+import { getSession, hasAdminRole } from "~/services/auth.server";
 
 export function meta(_args: Route.MetaArgs) {
   return [
@@ -52,8 +51,8 @@ export async function loader({ context, request }: Route.LoaderArgs) {
   const db = getDb(context.cloudflare.env.DB);
 
   const [bookmarksByCategory, allCategories] = await Promise.all([
-    getAllBookmarks(db),
-    getAllCategories(db),
+    getAllBookmarks(db, session.user.id),
+    getAllCategories(db, session.user.id),
   ]);
 
   // スター付きブックマークを収集
@@ -72,6 +71,12 @@ export async function loader({ context, request }: Route.LoaderArgs) {
 }
 
 export async function action({ request, context }: Route.ActionArgs) {
+  // 認証チェック（必須）
+  const session = await getSession(request, context);
+  if (!session?.user) {
+    return Response.json({ error: "認証が必要です" }, { status: 401 });
+  }
+
   // CSRF対策: POSTリクエストのみ許可
   if (request.method !== "POST") {
     return { error: "無効なリクエストメソッドです" };
@@ -201,7 +206,7 @@ export async function action({ request, context }: Route.ActionArgs) {
     }
 
     try {
-      await deleteBookmark(db, id);
+      await deleteBookmark(db, session.user.id, id);
       return { success: true };
     } catch (error) {
       console.error("Delete failed:", error);
@@ -235,11 +240,13 @@ export async function action({ request, context }: Route.ActionArgs) {
       // カテゴリを取得または作成
       const majorCategoryId = await getOrCreateCategory(
         db,
+        session.user.id,
         majorCategory,
         "major"
       );
       const minorCategoryId = await getOrCreateCategory(
         db,
+        session.user.id,
         minorCategory,
         "minor",
         majorCategoryId
@@ -304,7 +311,7 @@ export async function action({ request, context }: Route.ActionArgs) {
       );
 
       // 既存カテゴリ取得
-      const existingCategories = await getExistingCategories(db);
+      const existingCategories = await getExistingCategories(db, session.user.id);
 
       // AIでメタデータ生成
       const metadata = await generateBookmarkMetadata(
@@ -319,11 +326,13 @@ export async function action({ request, context }: Route.ActionArgs) {
       // カテゴリを取得または作成
       const majorCategoryId = await getOrCreateCategory(
         db,
+        session.user.id,
         metadata.majorCategory,
         "major"
       );
       const minorCategoryId = await getOrCreateCategory(
         db,
+        session.user.id,
         metadata.minorCategory,
         "minor",
         majorCategoryId
@@ -366,6 +375,11 @@ export async function action({ request, context }: Route.ActionArgs) {
 
   // すべてのブックマーク情報を一括更新
   if (intent === "refreshAll") {
+    // admin権限チェック
+    if (!hasAdminRole(session)) {
+      return Response.json({ error: "管理者権限が必要です" }, { status: 403 });
+    }
+
     try {
       // すべてのブックマークを取得
       const allBookmarksFlat = await db.select().from(bookmarks);
@@ -388,7 +402,7 @@ export async function action({ request, context }: Route.ActionArgs) {
             `[Refresh All] Starting batch update for ${allBookmarksFlat.length} bookmarks`
           );
 
-          const existingCategories = await getExistingCategories(db);
+          const existingCategories = await getExistingCategories(db, session.user.id);
           let successCount = 0;
           let errorCount = 0;
 
@@ -414,11 +428,13 @@ export async function action({ request, context }: Route.ActionArgs) {
               // カテゴリを取得または作成
               const majorCategoryId = await getOrCreateCategory(
                 db,
+                session.user.id,
                 metadata.majorCategory,
                 "major"
               );
               const minorCategoryId = await getOrCreateCategory(
                 db,
+                session.user.id,
                 metadata.minorCategory,
                 "minor",
                 majorCategoryId
@@ -482,6 +498,11 @@ export async function action({ request, context }: Route.ActionArgs) {
 
   // ブックマークの並び替え処理
   if (intent === "reorderBookmarks") {
+    // admin権限チェック
+    if (!hasAdminRole(session)) {
+      return Response.json({ error: "管理者権限が必要です" }, { status: 403 });
+    }
+
     try {
       const ordersJson = formData.get("orders") as string;
       if (!ordersJson) {
@@ -500,7 +521,7 @@ export async function action({ request, context }: Route.ActionArgs) {
 
       // 各ブックマークの順序を更新（バージョンチェック付き）
       const results = await Promise.all(
-        orders.map(({ id, order }) => updateBookmarkOrder(db, id, order))
+        orders.map(({ id, order }) => updateBookmarkOrder(db, session.user.id, id, order))
       );
 
       // 失敗があれば競合エラーを返す
@@ -540,6 +561,11 @@ export async function action({ request, context }: Route.ActionArgs) {
 
   // カテゴリの並び替え処理
   if (intent === "reorderCategories") {
+    // admin権限チェック
+    if (!hasAdminRole(session)) {
+      return Response.json({ error: "管理者権限が必要です" }, { status: 403 });
+    }
+
     try {
       const ordersJson = formData.get("orders") as string;
       if (!ordersJson) {
@@ -558,7 +584,7 @@ export async function action({ request, context }: Route.ActionArgs) {
 
       // 各カテゴリの順序を更新（バージョンチェック付き）
       const results = await Promise.all(
-        orders.map(({ id, order }) => updateCategoryOrder(db, id, order))
+        orders.map(({ id, order }) => updateCategoryOrder(db, session.user.id, id, order))
       );
 
       // 失敗があれば競合エラーを返す
@@ -622,7 +648,7 @@ export async function action({ request, context }: Route.ActionArgs) {
   }
 
   // 重複チェック
-  const isDuplicate = await checkDuplicateUrl(db, url);
+  const isDuplicate = await checkDuplicateUrl(db, session.user.id, url);
   if (isDuplicate) {
     return {
       error: "このURLは既に登録されています",
@@ -640,7 +666,7 @@ export async function action({ request, context }: Route.ActionArgs) {
           console.log("[Background] Starting AI processing for:", url);
 
           // 既存カテゴリ取得
-          const existingCategories = await getExistingCategories(db);
+          const existingCategories = await getExistingCategories(db, session.user.id);
 
           // AIでメタデータ生成
           const metadata = await generateBookmarkMetadata(
@@ -657,12 +683,14 @@ export async function action({ request, context }: Route.ActionArgs) {
           // カテゴリを取得または作成
           const majorCategoryId = await getOrCreateCategory(
             db,
+            session.user.id,
             metadata.majorCategory,
             "major",
             undefined
           );
           const minorCategoryId = await getOrCreateCategory(
             db,
+            session.user.id,
             metadata.minorCategory,
             "minor",
             majorCategoryId
@@ -670,6 +698,7 @@ export async function action({ request, context }: Route.ActionArgs) {
 
           // ブックマーク作成
           await createBookmark(db, {
+            userId: session.user.id,
             url: url,
             title,
             description: metadata.description,

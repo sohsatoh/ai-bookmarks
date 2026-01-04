@@ -826,6 +826,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
 
   const handleDrop = async (e: React.DragEvent, targetType: 'bookmark' | 'category', targetId: number, targetOrder: number, minorCategoryId?: number) => {
     e.preventDefault();
+    e.stopPropagation();
     
     if (!draggedItem || draggedItem.type !== targetType || draggedItem.id === targetId) {
       setDraggedItem(null);
@@ -837,22 +838,22 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
       if (targetType === 'bookmark') {
         // ブックマークの並び替え
         // ドラッグ元とドロップ先のカテゴリを取得
-        let draggedCategory = null;
-        let targetCategory = null;
+        let draggedCategoryId: number | null = null;
+        let targetCategoryId: number | null = null;
         
-        for (const major of loaderData.bookmarksByCategory) {
+        for (const major of displayBookmarks) {
           for (const minor of major.minorCategories) {
             if (minor.bookmarks.some(b => b.id === draggedItem.id)) {
-              draggedCategory = minor;
+              draggedCategoryId = minor.minorCategoryId;
             }
             if (minor.bookmarks.some(b => b.id === targetId)) {
-              targetCategory = minor;
+              targetCategoryId = minor.minorCategoryId;
             }
           }
         }
         
-        if (!draggedCategory || !targetCategory) return;
-        if (draggedCategory !== targetCategory) {
+        if (draggedCategoryId === null || targetCategoryId === null) return;
+        if (draggedCategoryId !== targetCategoryId) {
           // 異なるカテゴリ間での移動を試みた場合の警告トースト
           const toastId = Date.now().toString();
           setToasts(prev => [...prev, {
@@ -866,11 +867,20 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
           return;
         }
 
-        const bookmarksInCategory = [...targetCategory.bookmarks];
+        // カテゴリIDベースで検索
+        let bookmarksInCategory: typeof displayBookmarks[0]['minorCategories'][0]['bookmarks'] = [];
+        for (const major of displayBookmarks) {
+          const minor = major.minorCategories.find(m => m.minorCategoryId === targetCategoryId);
+          if (minor) {
+            bookmarksInCategory = [...minor.bookmarks];
+            break;
+          }
+        }
+
         const draggedIndex = bookmarksInCategory.findIndex(b => b.id === draggedItem.id);
         const targetIndex = bookmarksInCategory.findIndex(b => b.id === targetId);
         
-        if (draggedIndex === -1 || targetIndex === -1 || draggedIndex === targetIndex) return;
+        if (draggedIndex === -1 || targetIndex === -1) return;
 
         // positionに基づいて挿入位置を調整
         const position = dragOverItem?.position || 'after';
@@ -885,22 +895,28 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
           insertIndex--;
         }
 
+        // 同じ位置なら何もしない
+        if (draggedIndex === insertIndex) {
+          setDraggedItem(null);
+          setDragOverItem(null);
+          return;
+        }
+
         // 配列を並び替え
         const [removed] = bookmarksInCategory.splice(draggedIndex, 1);
         bookmarksInCategory.splice(insertIndex, 0, removed);
 
         // 楽観的UI更新: ローカルstateを即座に更新
         setOptimisticBookmarks(prevBookmarks => {
-          const newBookmarks = prevBookmarks.map(major => ({
+          return prevBookmarks.map(major => ({
             ...major,
             minorCategories: major.minorCategories.map(minor => {
-              if (minor === targetCategory) {
+              if (minor.minorCategoryId === targetCategoryId) {
                 return { ...minor, bookmarks: bookmarksInCategory };
               }
               return minor;
             })
           }));
-          return newBookmarks;
         });
 
         // 新しい順序を計算
@@ -917,7 +933,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
         submit(formData, { method: 'post', action: '/?index' });
       } else if (targetType === 'category') {
         // カテゴリの並び替え
-        const categories = loaderData.bookmarksByCategory;
+        const categories = [...displayBookmarks];
         const draggedIndex = categories.findIndex(c => c.majorCategoryId === draggedItem.id);
         const targetIndex = categories.findIndex(c => c.majorCategoryId === targetId);
         
@@ -934,6 +950,13 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
         // draggedIndexがinsertIndexより前にある場合、削除後にindexがずれるので調整
         if (draggedIndex < insertIndex) {
           insertIndex--;
+        }
+
+        // 同じ位置なら何もしない
+        if (draggedIndex === insertIndex) {
+          setDraggedItem(null);
+          setDragOverItem(null);
+          return;
         }
 
         const reordered = [...categories];
@@ -958,6 +981,9 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
       }
     } catch (error) {
       console.error('Reorder failed:', error);
+      // エラーが発生したら楽観的stateをリセット
+      setOptimisticBookmarks(loaderData.bookmarksByCategory);
+      
       // エラートーストを表示
       const toastId = Date.now().toString();
       setToasts(prev => [...prev, {

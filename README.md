@@ -98,8 +98,8 @@ pnpm wrangler secret put GITHUB_CLIENT_SECRET
   "vars": {
     "BETTER_AUTH_URL": "https://your-domain.com",
     "GOOGLE_CLIENT_ID": "your-google-client-id",
-    "GITHUB_CLIENT_ID": "your-github-client-id"
-  }
+    "GITHUB_CLIENT_ID": "your-github-client-id",
+  },
 }
 ```
 
@@ -155,8 +155,8 @@ pnpm wrangler secret put GITHUB_CLIENT_SECRET
   "vars": {
     "BETTER_AUTH_URL": "https://your-domain.com",
     "GOOGLE_CLIENT_ID": "your-google-client-id",
-    "GITHUB_CLIENT_ID": "your-github-client-id"
-  }
+    "GITHUB_CLIENT_ID": "your-github-client-id",
+  },
 }
 ```
 
@@ -175,9 +175,9 @@ pnpm run deploy
   "routes": [
     {
       "pattern": "your-domain.com",
-      "custom_domain": true
-    }
-  ]
+      "custom_domain": true,
+    },
+  ],
 }
 ```
 
@@ -294,24 +294,24 @@ pnpm run deploy
 #### 2. XSS（クロスサイトスクリプティング）対策
 
 - Reactの自動エスケープ: すべてのユーザー入力が自動的にエスケープされる
-- DOMPurify: 業界標準のHTMLサニタイザーを使用
-- すべてのHTMLタグとスクリプトを安全に処理
+- sanitize-html: 業界標準のHTMLサニタイザーを使用
+  - バトルテスト済みのライブラリ（週2M+ダウンロード、10年以上のメンテナンス実績）
+  - ホワイトリスト方式による安全な実装（allowedTags: [], allowedAttributes: {}）
+  - 再帰的エスケープモード（disallowedTagsMode: "recursiveEscape"）でネストされた攻撃も防御
+  - 正規表現ではなく適切なHTMLパーサーを使用
 - スクレイピングしたコンテンツからHTMLタグを完全除去
-- XSS攻撃ベクターを自動的に検出・除去
 - CSPヘッダー: Content Security Policyで不正なスクリプト実行を防止
-- `default-src 'self'`: 同一オリジンのみ許可
-- `script-src 'self' 'unsafe-inline'`: インラインスクリプトを最小限に
-- `frame-ancestors 'none'`: クリックジャッキング防止
-- `upgrade-insecure-requests`: HTTPSへの自動アップグレード
-- `block-all-mixed-content`: 混在コンテンツのブロック
-- HTMLタグの除去: スクレイピングしたコンテンツからHTMLタグを完全除去
-- 危険な文字の検出: `<script>`、`onerror`、`onclick`などの検出
+  - `default-src 'self'`: 同一オリジンのみ許可
+  - `script-src 'self' 'unsafe-inline'`: インラインスクリプトを最小限に
+  - `frame-ancestors 'none'`: クリックジャッキング防止
+  - `upgrade-insecure-requests`: HTTPSへの自動アップグレード
+  - `block-all-mixed-content`: 混在コンテンツのブロック
 - セキュリティヘッダー:
-- `X-Content-Type-Options: nosniff`
-- `X-Frame-Options: DENY`
-- `X-XSS-Protection: 1; mode=block`
-- `Permissions-Policy`: 不要な機能の無効化
-- `Strict-Transport-Security`: HTTPS強制（本番環境）
+  - `X-Content-Type-Options: nosniff`
+  - `X-Frame-Options: DENY`
+  - `X-XSS-Protection: 1; mode=block`
+  - `Permissions-Policy`: 不要な機能の無効化
+  - `Strict-Transport-Security`: HTTPS強制（本番環境）
 
 #### 3. Prompt Injection対策
 
@@ -362,8 +362,8 @@ pnpm run deploy
    // wrangler.jsonc
    {
      "limits": {
-       "cpu_ms": 10000
-     }
+       "cpu_ms": 10000,
+     },
    }
    ```
 

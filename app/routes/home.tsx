@@ -45,12 +45,21 @@ import {
 import { handleAddBookmark } from "~/actions/add-bookmark-action.server";
 
 export function meta(_args: Route.MetaArgs) {
+  const title = "ホーム - AI Bookmarks";
+  const description =
+    "AIによる自動カテゴリ分類ブックマーク管理。あなたのブックマークをスマートに整理・管理します。";
+  const url = "https://ai-bookmarks.pages.dev/home";
+
   return [
-    { title: "AI Bookmarks - 自動カテゴリ分類ブックマーク" },
-    {
-      name: "description",
-      content: "AIによる自動カテゴリ分類ブックマーク管理",
-    },
+    { title },
+    { name: "description", content: description },
+    { name: "robots", content: "noindex, nofollow" }, // ログインページのため非公開
+
+    // Open Graph
+    { property: "og:type", content: "website" },
+    { property: "og:title", content: title },
+    { property: "og:description", content: description },
+    { property: "og:url", content: url },
   ];
 }
 
@@ -227,8 +236,12 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
 
   const [processingCount, setProcessingCount] = useState(0);
   const lastActionDataRef = useRef<typeof actionData | null>(null);
-  const lastUploadFetcherDataRef = useRef<typeof fileUploadFetcher.data | null>(null);
-  const lastDeleteFetcherDataRef = useRef<typeof fileDeleteFetcher.data | null>(null);
+  const lastUploadFetcherDataRef = useRef<typeof fileUploadFetcher.data | null>(
+    null
+  );
+  const lastDeleteFetcherDataRef = useRef<typeof fileDeleteFetcher.data | null>(
+    null
+  );
   const previousBookmarkCountRef = useRef(0);
 
   // 楽観的UI更新用（ローカルで即座に順序を変更）
@@ -1234,7 +1247,9 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                                 >
                                   <button
                                     type="submit"
-                                    disabled={fileDeleteFetcher.state === "submitting"}
+                                    disabled={
+                                      fileDeleteFetcher.state === "submitting"
+                                    }
                                     className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
                                   >
                                     {fileDeleteFetcher.state === "submitting"

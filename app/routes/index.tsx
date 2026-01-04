@@ -17,13 +17,42 @@ import { useState, useEffect } from "react";
 import { ToastContainer, type ToastMessage } from "~/components/Toast";
 
 export function meta(_args: Route.MetaArgs) {
+  const title = "AI Bookmarks - AIによる自動カテゴリ分類ブックマーク管理";
+  const description =
+    "AIが自動でURLをカテゴリ分類するブックマーク管理サービス。シンプルで直感的なUIで、効率的にブックマークを整理できます。Cloudflare Workers AIを活用した高速で安全なブックマーク管理ツール。";
+  const url = "https://ai-bookmarks.pages.dev";
+  const image = `${url}/og-image.png`;
+
   return [
-    { title: "AI Bookmarks - AIによる自動カテゴリ分類ブックマーク管理" },
+    { title },
+    { name: "description", content: description },
     {
-      name: "description",
+      name: "keywords",
       content:
-        "AIが自動でURLをカテゴリ分類するブックマーク管理サービス。シンプルで直感的なUIで、効率的にブックマークを整理できます。",
+        "ブックマーク,AI,自動分類,カテゴリ,整理,管理,Cloudflare,Workers AI",
     },
+
+    // Open Graph
+    { property: "og:type", content: "website" },
+    { property: "og:title", content: title },
+    { property: "og:description", content: description },
+    { property: "og:url", content: url },
+    { property: "og:image", content: image },
+    { property: "og:site_name", content: "AI Bookmarks" },
+    { property: "og:locale", content: "ja_JP" },
+
+    // Twitter Card
+    { name: "twitter:card", content: "summary_large_image" },
+    { name: "twitter:title", content: title },
+    { name: "twitter:description", content: description },
+    { name: "twitter:image", content: image },
+
+    // その他のSEO最適化
+    { name: "robots", content: "index, follow" },
+    { name: "author", content: "AI Bookmarks" },
+
+    // Canonical URL
+    { tagName: "link", rel: "canonical", href: url },
   ];
 }
 
@@ -74,8 +103,42 @@ export default function Index() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
+  // 構造化データ（JSON-LD）
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    name: "AI Bookmarks",
+    description:
+      "AIが自動でURLをカテゴリ分類するブックマーク管理サービス。シンプルで直感的なUIで、効率的にブックマークを整理できます。",
+    url: "https://ai-bookmarks.pages.dev",
+    applicationCategory: "ProductivityApplication",
+    operatingSystem: "Web",
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "JPY",
+    },
+    featureList: [
+      "AI自動分類",
+      "スマートカテゴリ",
+      "ファイル管理",
+      "ソーシャル認証",
+    ],
+    softwareVersion: "1.0.0",
+    author: {
+      "@type": "Organization",
+      name: "AI Bookmarks",
+    },
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      {/* 構造化データ */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
+
       <ToastContainer toasts={toasts} onDismiss={handleDismissToast} />
       {/* ヘッダー */}
       <header className="bg-white shadow-sm">

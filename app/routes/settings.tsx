@@ -22,6 +22,14 @@ import { useState, useEffect } from "react";
 import { authClient } from "~/lib/auth-client";
 import { ToastContainer, type ToastMessage } from "~/components/Toast";
 
+export function meta(_args: Route.MetaArgs) {
+  return [
+    { title: "設定 - AI Bookmarks" },
+    { name: "description", content: "アカウント設定を管理します。" },
+    { name: "robots", content: "noindex, nofollow" },
+  ];
+}
+
 export async function loader({ request, context }: Route.LoaderArgs) {
   const session = await requireAuth(request, context);
   const db = getAccountDb(context);

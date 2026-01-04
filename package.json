@@ -10,7 +10,7 @@
     "dev": "react-router dev",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "wrangler d1 migrations apply ai-bookmarks-db --local",
-    "db:migrate:prod": "wrangler d1 migrations apply ai-bookmarks-db",
+    "db:migrate:prod": "wrangler d1 migrations apply ai-bookmarks-db --remote",
     "db:studio": "drizzle-kit studio",
     "postinstall": "pnpm run cf-typegen",
     "preview": "pnpm run build && vite preview",

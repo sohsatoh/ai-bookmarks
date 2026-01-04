@@ -15,6 +15,14 @@ import { FILE_CONFIG } from "~/constants";
 import { useState } from "react";
 import { Toast } from "~/components/Toast";
 
+export function meta(_args: Route.MetaArgs) {
+  return [
+    { title: "ファイル管理 - AI Bookmarks" },
+    { name: "description", content: "ファイルのアップロードと管理。" },
+    { name: "robots", content: "noindex, nofollow" },
+  ];
+}
+
 export async function loader({ request, context }: Route.LoaderArgs) {
   const session = await requireAuth(request, context);
 

@@ -54,7 +54,8 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     messageType = "error";
     switch (errorParam) {
       case "merge_token_invalid":
-        message = "マージトークンが無効または期限切れです。もう一度お試しください。";
+        message =
+          "マージトークンが無効または期限切れです。もう一度お試しください。";
         break;
       case "merge_session_invalid":
         message = "セッションが無効です。再度ログインしてください。";
@@ -66,7 +67,10 @@ export async function loader({ request, context }: Route.LoaderArgs) {
         message = errorParam;
     }
   } else {
-    const typeParam = url.searchParams.get("type") as "success" | "error" | null;
+    const typeParam = url.searchParams.get("type") as
+      | "success"
+      | "error"
+      | null;
     message = url.searchParams.get("message");
     messageType = typeParam;
   }

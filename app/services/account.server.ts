@@ -67,7 +67,9 @@ export async function generateMergeToken(
     key,
     encoder.encode(payloadBase64)
   );
-  const signatureBase64 = btoa(String.fromCharCode(...new Uint8Array(signature)));
+  const signatureBase64 = btoa(
+    String.fromCharCode(...new Uint8Array(signature))
+  );
 
   return `${payloadBase64}.${signatureBase64}`;
 }

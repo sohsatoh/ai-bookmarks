@@ -1,5 +1,3 @@
-import { Form } from "react-router";
-
 interface CategoryHeaderProps {
   majorCategory: string;
   majorIndex: number;

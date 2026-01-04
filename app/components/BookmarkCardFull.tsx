@@ -26,6 +26,7 @@ interface BookmarkCardFullProps {
   }) => void;
   categoryId?: number;
   isPinned?: boolean;
+  isAdmin?: boolean;
 }
 
 /**
@@ -59,6 +60,7 @@ export const BookmarkCardFull: React.FC<BookmarkCardFullProps> = ({
   onEdit,
   categoryId,
   isPinned = false,
+  isAdmin = false,
 }) => {
   const showBeforeLine = isDragOver && dragOverPosition === "before";
   const showAfterLine = isDragOver && dragOverPosition === "after";
@@ -154,7 +156,11 @@ export const BookmarkCardFull: React.FC<BookmarkCardFullProps> = ({
           </div>
 
           <div className="shrink-0 flex items-center gap-1 justify-end mt-auto pt-2">
-            <BookmarkActionButtons bookmark={bookmark} onEdit={onEdit} />
+            <BookmarkActionButtons
+              bookmark={bookmark}
+              onEdit={onEdit}
+              isAdmin={isAdmin}
+            />
           </div>
         </div>
       </div>

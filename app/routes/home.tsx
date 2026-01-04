@@ -2,7 +2,6 @@ import {
   Form,
   useNavigation,
   useRevalidator,
-  useSubmit,
   redirect,
 } from "react-router";
 import { useEffect, useState, useRef } from "react";
@@ -20,7 +19,6 @@ import { Footer } from "~/components/Footer";
 import { BookmarkCardFull } from "~/components/BookmarkCardFull";
 import { CategoryHeader } from "~/components/CategoryHeader";
 import { UI_CONFIG } from "~/constants";
-import type { BookmarkWithCategories } from "~/types/bookmark";
 import { getSession, hasAdminRole } from "~/services/auth.server";
 import {
   getClientIp,
@@ -80,6 +78,7 @@ export async function loader({ context, request }: Route.LoaderArgs) {
     starredBookmarks,
     allCategories,
     user: session.user,
+    isAdmin: hasAdminRole(session),
   };
 }
 
@@ -153,6 +152,10 @@ export async function action({ request, context }: Route.ActionArgs) {
     return handleDelete(formData, db, session.user.id);
   }
   if (intent === "edit") {
+    // admin権限チェック
+    if (!hasAdminRole(session)) {
+      return Response.json({ error: "管理者権限が必要です" }, { status: 403 });
+    }
     return handleEdit(formData, db, session.user.id);
   }
   if (intent === "refresh") {
@@ -203,7 +206,6 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
   const revalidator = useRevalidator();
-  const submit = useSubmit();
   const formRef = useRef<HTMLFormElement>(null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [editingBookmark, setEditingBookmark] = useState<{
@@ -462,32 +464,34 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
             Bookmarks
           </h1>
 
-          {/* 一括更新ボタン */}
-          <Form method="post">
-            <input type="hidden" name="intent" value="refreshAll" />
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
-              title="すべてのブックマーク情報を更新"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth="2"
+          {/* 一括更新ボタン（admin限定） */}
+          {loaderData.isAdmin && (
+            <Form method="post">
+              <input type="hidden" name="intent" value="refreshAll" />
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
+                title="すべてのブックマーク情報を更新"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
-              {isSubmitting ? "更新中..." : "すべて更新"}
-            </button>
-          </Form>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+                {isSubmitting ? "更新中..." : "すべて更新"}
+              </button>
+            </Form>
+          )}
         </div>
       </div>
 
@@ -703,6 +707,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                           onDragEnd={handleDragEnd}
                           onEdit={setEditingBookmark}
                           isPinned={true}
+                          isAdmin={loaderData.isAdmin}
                         />
                       ))}
                     </div>
@@ -766,6 +771,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                                 categoryId={minor.minorCategoryId}
                                 isPinned={false}
                                 onEdit={setEditingBookmark}
+                                isAdmin={loaderData.isAdmin}
                               />
                             ))}
                           </div>

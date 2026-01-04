@@ -10,6 +10,7 @@ interface BookmarkActionButtonsProps {
     majorCategory: string;
     minorCategory: string;
   }) => void;
+  isAdmin?: boolean;
 }
 
 /**
@@ -23,6 +24,7 @@ interface BookmarkActionButtonsProps {
 export const BookmarkActionButtons: React.FC<BookmarkActionButtonsProps> = ({
   bookmark,
   onEdit,
+  isAdmin = false,
 }) => {
   return (
     <div className="flex items-center gap-1">
@@ -199,36 +201,38 @@ export const BookmarkActionButtons: React.FC<BookmarkActionButtonsProps> = ({
         </button>
       </Form>
 
-      {/* 編集ボタン */}
-      <button
-        type="button"
-        onClick={() =>
-          onEdit({
-            id: bookmark.id,
-            title: bookmark.title,
-            description: bookmark.description,
-            majorCategory: bookmark.majorCategory.name,
-            minorCategory: bookmark.minorCategory.name,
-          })
-        }
-        className="p-2 text-gray-400 hover:text-purple-500 dark:hover:text-purple-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
-        title="Edit"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-5 w-5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth="1.5"
+      {/* 編集ボタン（admin限定） */}
+      {isAdmin && (
+        <button
+          type="button"
+          onClick={() =>
+            onEdit({
+              id: bookmark.id,
+              title: bookmark.title,
+              description: bookmark.description,
+              majorCategory: bookmark.majorCategory.name,
+              minorCategory: bookmark.minorCategory.name,
+            })
+          }
+          className="p-2 text-gray-400 hover:text-purple-500 dark:hover:text-purple-400 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+          title="Edit"
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-          />
-        </svg>
-      </button>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth="1.5"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+            />
+          </svg>
+        </button>
+      )}
 
       {/* 削除ボタン */}
       <Form method="post">

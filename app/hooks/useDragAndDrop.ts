@@ -106,8 +106,8 @@ export const useDragAndDrop = ({
     e: React.DragEvent,
     targetType: "bookmark" | "category",
     targetId: number,
-    targetIndex: number,
-    categoryId?: number
+    _targetIndex: number,
+    _categoryId?: number
   ) => {
     e.preventDefault();
 

@@ -94,11 +94,27 @@ export async function action({ request, context }: Route.ActionArgs) {
     return { error: "無効なリクエストメソッドです" };
   }
 
-  // CSRF対策: Originヘッダーチェック
+  // CSRF対策: Originヘッダーチェック（開発環境では緩和）
   const origin = request.headers.get("Origin");
   const host = request.headers.get("Host");
+  const isDevelopment =
+    context.cloudflare.env.BETTER_AUTH_URL?.includes("localhost") ||
+    context.cloudflare.env.BETTER_AUTH_URL?.includes("127.0.0.1");
+
   if (origin && host && new URL(origin).host !== host) {
-    return { error: "不正なリクエスト元です" };
+    // 開発環境ではlocalhost/127.0.0.1の違いを許容
+    if (!isDevelopment) {
+      return { error: "不正なリクエスト元です" };
+    }
+    // 開発環境でも明らかに異なるオリジンは拒否
+    const originUrl = new URL(origin);
+    const isLocalOrigin =
+      originUrl.hostname === "localhost" ||
+      originUrl.hostname === "127.0.0.1" ||
+      originUrl.hostname === host;
+    if (!isLocalOrigin) {
+      return { error: "不正なリクエスト元です" };
+    }
   }
 
   // DoS対策: レート制限チェック（一般的な変更操作）

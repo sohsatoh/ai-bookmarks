@@ -11,6 +11,19 @@
 import type { LoaderFunctionArgs } from "react-router";
 import { getSession } from "~/services/auth.server";
 import { redirect } from "react-router";
+import type { Route } from "./+types/login";
+
+export function meta(_args: Route.MetaArgs) {
+  return [
+    { title: "ログイン - AI Bookmarks" },
+    {
+      name: "description",
+      content:
+        "AI Bookmarksにログインして、AIによる自動カテゴリ分類でブックマークを管理しましょう。",
+    },
+    { name: "robots", content: "noindex, nofollow" },
+  ];
+}
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
   // すでにログインしている場合はホームにリダイレクト

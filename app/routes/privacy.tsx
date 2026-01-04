@@ -2,12 +2,21 @@ import { Link } from "react-router";
 import type { Route } from "./+types/privacy";
 
 export function meta(_args: Route.MetaArgs) {
+  const title = "プライバシーポリシー - AI Bookmarks";
+  const description =
+    "AI Bookmarksのプライバシーポリシー。個人情報の収集、使用、管理について説明します。";
+  const url = "https://ai-bookmarks.pages.dev/privacy";
+
   return [
-    { title: "プライバシーポリシー - AI Bookmarks" },
-    {
-      name: "description",
-      content: "AI Bookmarksのプライバシーポリシー",
-    },
+    { title },
+    { name: "description", content: description },
+    { name: "robots", content: "index, follow" },
+
+    // Open Graph
+    { property: "og:type", content: "website" },
+    { property: "og:title", content: title },
+    { property: "og:description", content: description },
+    { property: "og:url", content: url },
   ];
 }
 

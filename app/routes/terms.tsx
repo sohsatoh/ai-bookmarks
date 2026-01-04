@@ -2,12 +2,21 @@ import { Link } from "react-router";
 import type { Route } from "./+types/terms";
 
 export function meta(_args: Route.MetaArgs) {
+  const title = "利用規約 - AI Bookmarks";
+  const description =
+    "AI Bookmarksの利用規約。サービスを利用する際の規約と条件を説明します。";
+  const url = "https://ai-bookmarks.pages.dev/terms";
+
   return [
-    { title: "利用規約 - AI Bookmarks" },
-    {
-      name: "description",
-      content: "AI Bookmarksの利用規約",
-    },
+    { title },
+    { name: "description", content: description },
+    { name: "robots", content: "index, follow" },
+
+    // Open Graph
+    { property: "og:type", content: "website" },
+    { property: "og:title", content: title },
+    { property: "og:description", content: description },
+    { property: "og:url", content: url },
   ];
 }
 

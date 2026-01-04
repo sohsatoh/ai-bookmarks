@@ -2,7 +2,7 @@
 
 このドキュメントは、AI Bookmarksプロジェクトに取り組むAI Agentsのための包括的なガイドラインです。
 
-## 📋 基本方針
+## 基本方針
 
 ### 言語について
 
@@ -65,16 +65,17 @@
    - セキュリティに関わる変更がある場合、SECURITY.mdを更新
    - このAGENTS.mdに新しいベストプラクティスがあれば追記
 
-## 🏗️ プロジェクト構成
+## プロジェクト構成
 
 ### 技術スタック
 
-- **フロントエンド**: React 19 + React Router 7 + Tailwind CSS v4
-- **バックエンド**: Cloudflare Workers
-- **データベース**: Cloudflare D1 (SQLite)
-- **ORM**: Drizzle ORM
-- **AI**: Cloudflare Workers AI (@cf/openai/gpt-oss-120b)
-- **パッケージマネージャー**: pnpm
+- フロントエンド: React 19 + React Router 7 + Tailwind CSS v4
+- バックエンド: Cloudflare Workers
+- データベース: Cloudflare D1 (SQLite)
+- ORM: Drizzle ORM
+- AI: Cloudflare Workers AI (@cf/openai/gpt-oss-120b)
+- 認証: Better Auth (OAuth 2.0)
+- パッケージマネージャー: pnpm
 
 ### ディレクトリ構造
 
@@ -103,9 +104,11 @@ ai-bookmarks/
 ### 重要なファイル
 
 - `app/constants.ts`: すべての設定値（AI、セキュリティ、UI等）
-- `app/db/schema.ts`: データベーススキーマ定義
+- `app/db/schema.ts`: データベーススキーマ定義（認証テーブル含む）
+- `app/services/auth.server.ts`: Better Auth認証処理
 - `app/services/security.server.ts`: セキュリティ関連の処理
 - `wrangler.jsonc`: Cloudflare Workers設定
+- `.dev.vars`: ローカル開発用環境変数（Gitにコミットしない）
 
 ### Wranglerコマンドの実行方法
 
@@ -122,9 +125,9 @@ wrangler types
 npx wrangler types
 ```
 
-**注意**: `package.json`のscriptsに定義されているコマンド（`pnpm run dev`、`pnpm run build`等）を使用する場合は、内部で自動的にwranglerが実行されるため、このプレフィックスは不要です。
+注意: `package.json`のscriptsに定義されているコマンド（`pnpm run dev`、`pnpm run build`等）を使用する場合は、内部で自動的にwranglerが実行されるため、このプレフィックスは不要です。
 
-## 🔒 セキュリティガイドライン
+## セキュリティガイドライン
 
 ### 絶対に守るべきこと
 
@@ -217,7 +220,28 @@ if (title.length > AI_CONFIG.TITLE_MAX_LENGTH) {
 - Permissions-Policy
 - Referrer-Policy
 
-## 💻 コーディング規約
+### 認証とアクセス制御
+
+- Better Authによる認証: GoogleとGitHubのOAuth 2.0
+- セッション管理: サーバーサイドセッション（7日間有効、1日ごとに更新）
+- CSRF保護: Origin検証、state/PKCE検証、SameSite=Lax
+- ユーザー分離: すべてのクエリに`WHERE user_id = ?`フィルタを必須
+- セキュアクッキー: httpOnly, secure（本番環境）
+- IPトラッキング: 不正アクセス検出用
+- レート制限: 60秒で10リクエスト（Better Auth組み込み）
+
+```typescript
+// ✅ 正しい例: ユーザーIDでフィルタリング
+const bookmarks = await db
+  .select()
+  .from(bookmarks)
+  .where(eq(bookmarks.userId, session.user.id));
+
+// ❌ 間違った例: ユーザーIDフィルタなし（他のユーザーのデータが見える）
+const bookmarks = await db.select().from(bookmarks);
+```
+
+## コーディング規約
 
 ### コードフォーマットとLint
 
@@ -334,7 +358,7 @@ async function addBookmark(
 }
 ```
 
-## 🧪 テストとビルド
+## テストとビルド
 
 ### ビルドコマンド
 
@@ -389,7 +413,7 @@ pnpm run db:studio
 - [ ] 追加したコードにセキュリティ上の問題がない
 - [ ] README.mdまたはSECURITY.mdの更新が必要な場合は更新済み
 
-## 📝 コミットガイドライン
+## コミットガイドライン
 
 ### コミットメッセージ
 
@@ -409,7 +433,7 @@ git commit -m "fix bug"
 git commit -m "Add bookmark deletion feature" # 英語
 ```
 
-## 🔧 依存関係管理
+## 依存関係管理
 
 ### パッケージの追加
 
@@ -434,7 +458,7 @@ pnpm audit
 - **テスト**: 更新後は必ずビルドとテストを実行
 - **BREAKING CHANGES**: 破壊的変更がないか確認
 
-## 🎯 ベストプラクティス
+## ベストプラクティス
 
 ### 定数の使用
 
@@ -484,7 +508,7 @@ async function fetchData() {
 - 適切なARIA属性を付与
 - キーボード操作に対応
 
-## 🚨 よくある落とし穴
+## よくある落とし穴
 
 ### 1. Wranglerコマンドの実行
 
@@ -523,7 +547,7 @@ npx wrangler types
 - すべての時刻はUTCで保存
 - 表示時にローカルタイムゾーンに変換
 
-## 📚 参考リソース
+## 参考リソース
 
 ### 公式ドキュメント
 
@@ -539,8 +563,10 @@ npx wrangler types
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/)
 - [OWASP Cheat Sheet Series](https://cheatsheetseries.owasp.org/)
 - [Prompt Injection Defense](https://learnprompting.org/docs/prompt_hacking/defensive_measures/introduction)
+- [Better Auth Documentation](https://www.better-auth.com/docs)
+- [OAuth 2.0 Security Best Practices](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-security-topics)
 
-## 📞 トラブルシューティング
+## トラブルシューティング
 
 ### ビルドが失敗する
 
@@ -572,7 +598,8 @@ npx wrangler types
 2. D1データベースIDが正しいか確認
 3. Cloudflareアカウントの権限を確認
 
-## 🔄 更新履歴
+## 更新履歴
 
-- 2026-01-04: PrettierとESLintの設定を追加 - VS Code拡張機能推奨、フォーマット・Lintルールを業界標準に設定
-- 2026-01-03: 初版作成 - 包括的な開発ガイドラインを作成
+- 2026-01-04: Better Auth認証機能を追加、ユーザー分離を実装、新機能追加（starred、read_status、archived）
+- 2026-01-04: PrettierとESLintの設定を追加、VS Code拡張機能推奨、フォーマット・Lintルールを業界標準に設定
+- 2026-01-03: 初版作成、包括的な開発ガイドラインを作成

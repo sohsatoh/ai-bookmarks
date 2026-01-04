@@ -6,8 +6,10 @@ Cloudflare Workers AI、D1データベース、Drizzle ORMを使った自動カ�
 
 - AI自動分類: Workers AIがURLから大カテゴリ・小カテゴリ・説明文を自動生成
 - スマートカテゴリ: 既存カテゴリとの類似性を考慮してカテゴリを選択・統合
+- ソーシャル認証: GoogleとGitHubによるOAuth 2.0認証（Better Auth）
+- ユーザー分離: ユーザーごとに完全に分離されたブックマーク管理
 - モダンUI: Tailwind CSS v4によるレスポンシブでダークモード対応のデザイン
-- セキュア: Drizzle ORMによるSQLインジェクション対策、CSPヘッダー設定
+- セキュア: Drizzle ORMによるSQLインジェクション対策、CSPヘッダー設定、CSRF保護
 - 高速: Cloudflare Workers上で動作する超高速SPA
 - スケーラブル: D1データベースで大量のブックマークを管理
 
@@ -18,6 +20,7 @@ Cloudflare Workers AI、D1データベース、Drizzle ORMを使った自動カ�
 - データベース: Cloudflare D1 (SQLite)
 - ORM: Drizzle ORM
 - AI: Cloudflare Workers AI (Llama 3.1)
+- 認証: Better Auth (OAuth 2.0)
 
 ## セットアップ
 
@@ -27,7 +30,59 @@ Cloudflare Workers AI、D1データベース、Drizzle ORMを使った自動カ�
 pnpm install
 ```
 
-### 2. D1データベースの作成
+### 2. 環境変数の設定
+
+Better Auth認証に必要な環境変数を設定します。
+
+#### 2.1 Google OAuth設定
+
+1. Google Cloud Consoleで新しいプロジェクトを作成
+2. OAuth 2.0 クライアントIDを作成
+   - アプリケーションの種類: ウェブアプリケーション
+   - 承認済みのリダイレクトURI: `https://your-domain.com/api/auth/callback/google`
+3. クライアントIDとクライアントシークレットを取得
+
+#### 2.2 GitHub OAuth設定
+
+1. GitHubのSettings > Developer settings > OAuth Appsで新しいアプリを作成
+2. Authorization callback URL: `https://your-domain.com/api/auth/callback/github`
+3. クライアントIDとクライアントシークレットを取得
+
+#### 2.3 環境変数の設定
+
+ローカル開発用（.dev.vars）:
+
+```bash
+# .dev.vars（Gitにコミットしない）
+BETTER_AUTH_URL=http://localhost:5173
+BETTER_AUTH_SECRET=your-random-secret-here
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+GITHUB_CLIENT_ID=your-github-client-id
+GITHUB_CLIENT_SECRET=your-github-client-secret
+```
+
+本番環境用:
+
+```bash
+pnpm wrangler secret put BETTER_AUTH_SECRET
+pnpm wrangler secret put GOOGLE_CLIENT_SECRET
+pnpm wrangler secret put GITHUB_CLIENT_SECRET
+```
+
+`wrangler.jsonc`にも設定を追加:
+
+```jsonc
+{
+  "vars": {
+    "BETTER_AUTH_URL": "https://your-domain.com",
+    "GOOGLE_CLIENT_ID": "your-google-client-id",
+    "GITHUB_CLIENT_ID": "your-github-client-id"
+  }
+}
+```
+
+### 3. D1データベースの作成
 
 ```bash
 # ローカル開発用データベース
@@ -39,7 +94,7 @@ pnpm wrangler d1 create ai-bookmarks-db --env production
 
 作成されたデータベースIDを`wrangler.jsonc`の`d1_databases[0].database_id`に設定してください。
 
-### 3. マイグレーションの実行
+### 4. マイグレーションの実行
 
 ```bash
 # スキーマからマイグレーションファイルを生成
@@ -52,7 +107,7 @@ pnpm run db:migrate
 pnpm run db:migrate:prod
 ```
 
-### 4. 開発サーバーの起動
+### 5. 開発サーバーの起動
 
 ```bash
 pnpm run dev
@@ -62,71 +117,56 @@ pnpm run dev
 
 ## デプロイ
 
-### 1. Cloudflare Workers へのデプロイ
+### 1. 環境変数の設定（本番環境）
+
+本番環境のシークレットを設定:
+
+```bash
+pnpm wrangler secret put BETTER_AUTH_SECRET
+pnpm wrangler secret put GOOGLE_CLIENT_SECRET
+pnpm wrangler secret put GITHUB_CLIENT_SECRET
+```
+
+`wrangler.jsonc`の`vars`を本番環境のURLに更新:
+
+```jsonc
+{
+  "vars": {
+    "BETTER_AUTH_URL": "https://your-domain.com",
+    "GOOGLE_CLIENT_ID": "your-google-client-id",
+    "GITHUB_CLIENT_ID": "your-github-client-id"
+  }
+}
+```
+
+### 2. Cloudflare Workers へのデプロイ
 
 ```bash
 pnpm run deploy
 ```
 
-### 2. Cloudflare Zero Trustによるアクセス制御
-
-アプリケーションへのアクセスを制御するため、Cloudflare Zero Trustを設定します。
-
-#### 2.1 Cloudflare Zero Trust の有効化
-
-1. Cloudflare Dashboardにログイン
-2. 左サイドバーから Zero Trust を選択
-3. チームを作成（初回のみ）
-
-#### 2.2 Access アプリケーションの作成
-
-1. Zero Trust ダッシュボードで Access → Applications を選択
-2. Add an application をクリック
-3. Self-hosted を選択
-
-Application Configuration:
-
-- Application name: AI Bookmarks
-- Session Duration: 24 hours（お好みで調整）
-- Application domain:
-  - Subdomain: `ai-bookmarks`（Workers のカスタムドメインまたは workers.dev ドメイン）
-  - Domain: `your-domain.workers.dev` または カスタムドメイン
-
-Identity providers:
-
-- Add a Rule をクリック
-- Rule name: Email Authentication
-- Action: Allow
-- Configure rules:
-  - Include: Emails → 許可するメールアドレスを追加
-  - または Emails ending in → `@example.com`（ドメイン全体を許可）
-
-1. Save application をクリック
-
-#### 2.3 wrangler.jsonc の更新（オプション）
+### 3. カスタムドメインの設定（オプション）
 
 カスタムドメインを使用する場合は、`wrangler.jsonc`に`routes`を追加:
 
 ```jsonc
 {
-  // ... 既存の設定
   "routes": [
     {
-      "pattern": "ai-bookmarks.example.com",
-      "custom_domain": true,
-    },
-  ],
+      "pattern": "your-domain.com",
+      "custom_domain": true
+    }
+  ]
 }
 ```
 
-#### 2.4 動作確認
-
-1. アプリケーションのURLにアクセス
-2. Cloudflare Access のログイン画面が表示されることを確認
-3. 許可されたメールアドレスでログイン
-4. アプリケーションが表示されることを確認
-
 ## 使い方
+
+### 初回ログイン
+
+1. アプリケーションにアクセス
+2. GoogleまたはGitHubでログイン
+3. 初回ログインでユーザーアカウントが自動作成されます
 
 ### ブックマークの追加
 
@@ -135,10 +175,12 @@ Identity providers:
 3. Workers AIが自動的にページタイトル、カテゴリ、説明文を生成
 4. ブックマークが一覧に追加されます
 
-### ブックマークの削除
+### ブックマークの管理
 
-- 各ブックマークカードにマウスホバーすると削除ボタンが表示されます
-- 削除ボタンをクリックして削除
+- スター: お気に入りブックマークにマーク
+- 既読/未読: 読んだブックマークを管理
+- アーカイブ: 使わなくなったブックマークを保管
+- 削除: ブックマークを完全に削除
 
 ### その他のページ
 
@@ -147,29 +189,76 @@ Identity providers:
 
 ## データベーススキーマ
 
+### user テーブル（Better Auth）
+
+| カラム名       | 型      | 説明                           |
+| -------------- | ------- | ------------------------------ |
+| id             | TEXT    | 主キー（UUID）                 |
+| name           | TEXT    | ユーザー名                     |
+| email          | TEXT    | メールアドレス（ユニーク）     |
+| email_verified | BOOLEAN | メール検証済みフラグ           |
+| role           | TEXT    | ロール（admin/user）           |
+| created_at     | INTEGER | 作成日時（UNIXタイムスタンプ） |
+| updated_at     | INTEGER | 更新日時                       |
+
+### session テーブル（Better Auth）
+
+| カラム名   | 型      | 説明                       |
+| ---------- | ------- | -------------------------- |
+| id         | TEXT    | 主キー                     |
+| user_id    | TEXT    | ユーザーID（外部キー）     |
+| expires_at | INTEGER | 有効期限                   |
+| ip_address | TEXT    | IPアドレス（セキュリティ） |
+| user_agent | TEXT    | ユーザーエージェント       |
+| created_at | INTEGER | 作成日時                   |
+| updated_at | INTEGER | 更新日時                   |
+
+### account テーブル（Better Auth - OAuth）
+
+| カラム名      | 型      | 説明                          |
+| ------------- | ------- | ----------------------------- |
+| id            | TEXT    | 主キー                        |
+| user_id       | TEXT    | ユーザーID（外部キー）        |
+| account_id    | TEXT    | プロバイダー側のユーザーID    |
+| provider_id   | TEXT    | プロバイダー（google/github） |
+| access_token  | TEXT    | アクセストークン              |
+| refresh_token | TEXT    | リフレッシュトークン          |
+| expires_at    | INTEGER | トークン有効期限              |
+| created_at    | INTEGER | 作成日時                      |
+| updated_at    | INTEGER | 更新日時                      |
+
 ### categories テーブル
 
-| カラム名   | 型      | 説明                                           |
-| ---------- | ------- | ---------------------------------------------- |
-| id         | INTEGER | 主キー（自動採番）                             |
-| name       | TEXT    | カテゴリ名                                     |
-| type       | TEXT    | タイプ（major: 大カテゴリ、minor: 小カテゴリ） |
-| parent_id  | INTEGER | 親カテゴリID（小カテゴリの場合のみ）           |
-| created_at | INTEGER | 作成日時（UNIXタイムスタンプ）                 |
+| カラム名      | 型      | 説明                                           |
+| ------------- | ------- | ---------------------------------------------- |
+| id            | INTEGER | 主キー（自動採番）                             |
+| user_id       | TEXT    | ユーザーID（外部キー）                         |
+| name          | TEXT    | カテゴリ名                                     |
+| type          | TEXT    | タイプ（major: 大カテゴリ、minor: 小カテゴリ） |
+| parent_id     | INTEGER | 親カテゴリID（小カテゴリの場合のみ）           |
+| icon          | TEXT    | SVGアイコン（AI生成）                          |
+| display_order | INTEGER | 表示順序                                       |
+| version       | INTEGER | 楽観的ロック用バージョン                       |
+| created_at    | INTEGER | 作成日時（UNIXタイムスタンプ）                 |
 
 ### bookmarks テーブル
 
-| カラム名          | 型      | 説明                                       |
-| ----------------- | ------- | ------------------------------------------ |
-| id                | INTEGER | 主キー（自動採番）                         |
-| url               | TEXT    | ブックマークURL                            |
-| title             | TEXT    | ページタイトル                             |
-| description       | TEXT    | 説明文                                     |
-| major_category_id | INTEGER | 大カテゴリID                               |
-| minor_category_id | INTEGER | 小カテゴリID                               |
-| user_id           | TEXT    | ユーザーID（将来の認証対応用、現在はNULL） |
-| created_at        | INTEGER | 作成日時                                   |
-| updated_at        | INTEGER | 更新日時                                   |
+| カラム名          | 型      | 説明                     |
+| ----------------- | ------- | ------------------------ |
+| id                | INTEGER | 主キー（自動採番）       |
+| user_id           | TEXT    | ユーザーID（外部キー）   |
+| url               | TEXT    | ブックマークURL          |
+| title             | TEXT    | ページタイトル           |
+| description       | TEXT    | 説明文                   |
+| major_category_id | INTEGER | 大カテゴリID             |
+| minor_category_id | INTEGER | 小カテゴリID             |
+| is_starred        | BOOLEAN | スターフラグ             |
+| read_status       | TEXT    | 既読状態（unread/read）  |
+| is_archived       | BOOLEAN | アーカイブフラグ         |
+| display_order     | INTEGER | 表示順序                 |
+| version           | INTEGER | 楽観的ロック用バージョン |
+| created_at        | INTEGER | 作成日時                 |
+| updated_at        | INTEGER | 更新日時                 |
 
 ## セキュリティ
 
@@ -238,15 +327,22 @@ Identity providers:
 
 #### 本番環境での推奨設定
 
-1. Cloudflare Zero Trustを有効化してアクセス制御を実装
-2. Rate Limitingを設定（Cloudflare Workers設定で）:
+1. Better Auth認証を有効化
+   - OAuth 2.0による安全な認証
+   - PKCE（Proof Key for Code Exchange）による保護
+   - CSRF保護の有効化
+   - セキュアクッキー（httpOnly, secure, sameSite）
+
+2. Rate Limitingを設定:
+   - Better Auth組み込みのレート制限（デフォルト: 60秒で10リクエスト）
+   - Cloudflare Workers設定でCPU制限:
 
    ```jsonc
    // wrangler.jsonc
    {
      "limits": {
-       "cpu_ms": 10000,
-     },
+       "cpu_ms": 10000
+     }
    }
    ```
 
@@ -265,19 +361,15 @@ Identity providers:
 
 ## 将来の拡張
 
-### ユーザー認証の追加
+### 追加機能の候補
 
-現在は全体でCloudflare Zero Trustによるアクセス制御のみですが、将来的にユーザーごとのブックマーク管理を実装する場合:
-
-1. 認証プロバイダー（Cloudflare Access、Auth0等）を統合
-2. `bookmarks.user_id`に実際のユーザーIDを設定
-3. クエリに`WHERE user_id = ?`フィルタを追加
-4. マイグレーションで`user_id`を`NOT NULL`制約に変更
-
-```sql
--- 将来のマイグレーション例
-ALTER TABLE bookmarks ALTER COLUMN user_id SET NOT NULL;
-```
+- ブックマーク共有機能
+- タグ機能
+- 全文検索
+- ブックマークのエクスポート/インポート
+- カテゴリのカスタマイズ
+- ブックマークのメモ機能
+- AIによる関連ブックマークの推薦
 
 ## 開発コマンド
 
@@ -290,6 +382,18 @@ pnpm run build
 
 # 型チェック
 pnpm run typecheck
+
+# コードフォーマット
+pnpm run format
+
+# フォーマットチェック
+pnpm run format:check
+
+# Lintチェック
+pnpm run lint
+
+# Lint自動修正
+pnpm run lint:fix
 
 # D1マイグレーション生成
 pnpm run db:generate

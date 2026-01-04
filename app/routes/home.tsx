@@ -22,6 +22,7 @@ import { initBroadcastChannel, broadcast, closeBroadcastChannel, type BroadcastM
 import { ToastContainer, type ToastMessage } from "~/components/Toast";
 import { Footer } from "~/components/Footer";
 import { UI_CONFIG } from "~/constants";
+import type { BookmarkWithCategories } from "~/types/bookmark";
 
 export function meta(_args: Route.MetaArgs) {
   return [
@@ -868,7 +869,8 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
         }
 
         // カテゴリIDベースで検索
-        let bookmarksInCategory: typeof displayBookmarks[0]['minorCategories'][0]['bookmarks'] = [];
+        type BookmarkArray = BookmarkWithCategories[];
+        let bookmarksInCategory: BookmarkArray = [];
         for (const major of displayBookmarks) {
           const minor = major.minorCategories.find(m => m.minorCategoryId === targetCategoryId);
           if (minor) {
@@ -880,7 +882,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
         const draggedIndex = bookmarksInCategory.findIndex(b => b.id === draggedItem.id);
         const targetIndex = bookmarksInCategory.findIndex(b => b.id === targetId);
         
-        if (draggedIndex === -1 || targetIndex === -1) return;
+        if (draggedIndex === -1 || targetIndex === -1 || draggedIndex === targetIndex) return;
 
         // positionに基づいて挿入位置を調整
         const position = dragOverItem?.position || 'after';

@@ -21,6 +21,7 @@ import { drizzle } from "drizzle-orm/d1";
 import { eq } from "drizzle-orm";
 import { accounts } from "~/db/schema";
 import { useState } from "react";
+import { authClient } from "~/lib/auth-client";
 
 export async function loader({ request, context }: Route.LoaderArgs) {
   const session = await requireAuth(request, context);
@@ -67,6 +68,20 @@ export default function Settings() {
 
   // 最後のアカウントかどうかを確認
   const isLastAccount = userAccounts.length === 1;
+
+  // アカウント連携処理（linkSocial使用）
+  const handleAccountLink = async (provider: "google" | "github") => {
+    try {
+      // Better Authの linkSocial を使用して既存ユーザーに新しいアカウントを紐づける
+      await authClient.linkSocial({
+        provider,
+        callbackURL: "/settings",
+      });
+    } catch (error) {
+      console.error("連携エラー:", error);
+      alert("アカウント連携に失敗しました。もう一度お試しください。");
+    }
+  };
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -154,10 +169,13 @@ export default function Settings() {
           <h2 className="text-xl font-semibold mb-4">新規アカウント連携</h2>
           <div className="space-y-3">
             {availableProviders.map((provider) => (
-              <a
+              <button
                 key={provider}
-                href={`/api/auth/signin/${provider}?callbackURL=${encodeURIComponent("/settings")}`}
-                className="flex items-center gap-3 p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                onClick={() =>
+                  handleAccountLink(provider as "google" | "github")
+                }
+                type="button"
+                className="w-full flex items-center gap-3 p-4 border rounded-lg hover:bg-gray-50 transition-colors text-left"
               >
                 <span className="text-2xl">
                   {PROVIDER_ICONS[provider] || "🔗"}
@@ -171,7 +189,7 @@ export default function Settings() {
                     アカウントと連携します
                   </div>
                 </div>
-              </a>
+              </button>
             ))}
           </div>
         </div>

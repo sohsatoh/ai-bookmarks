@@ -87,6 +87,9 @@ export function createAuth(context: AppLoadContext) {
         // すべてのOAuthプロバイダーを信頼する
         // (Google, GitHubともにメール検証を行っている)
         trustedProviders: ["google", "github"],
+        // 異なるメールアドレスでのアカウント連携を許可
+        // GoogleとGitHubで異なるメールアドレスを使用するケースに対応
+        allowDifferentEmails: true,
       },
     },
 

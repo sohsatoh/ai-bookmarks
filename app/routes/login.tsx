@@ -40,7 +40,7 @@ export default function Login() {
         throw new Error("ログインに失敗しました");
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as { url?: string };
       // OAuthプロバイダーのURLにリダイレクト
       if (data.url) {
         window.location.href = data.url;

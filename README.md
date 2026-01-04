@@ -57,6 +57,7 @@ Better Auth認証に必要な環境変数を設定します。
 1Password Environmentsを使用すると、シークレットが安全に管理され、ディスクに保存されません。
 
 前提条件:
+
 - 1Password for Mac/Linuxがインストール済み
 - 1Password Developerが有効化済み
 

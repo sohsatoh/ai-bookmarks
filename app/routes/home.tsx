@@ -256,16 +256,34 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
     0
   );
 
-  // 処理中のブックマークがある場合、定期的にリフレッシュ
+  // AI処理待ちのブックマーク数を計算（未分類カテゴリまたは「AI分析中...」の説明文を持つもの）
+  const aiProcessingCount = loaderData.bookmarksByCategory.reduce(
+    (total, major) =>
+      total +
+      major.minorCategories.reduce(
+        (sum, minor) =>
+          sum +
+          minor.bookmarks.filter(
+            (b) =>
+              (major.majorCategory === "未分類" &&
+                minor.minorCategory === "その他") ||
+              b.description === "AI分析中..."
+          ).length,
+        0
+      ),
+    0
+  );
+
+  // 処理中のブックマークまたはAI処理待ちのブックマークがある場合、定期的にリフレッシュ
   useEffect(() => {
-    if (processingCount > 0) {
+    if (processingCount > 0 || aiProcessingCount > 0) {
       const interval = setInterval(() => {
         revalidator.revalidate();
       }, UI_CONFIG.POLLING_INTERVAL_MS);
 
       return () => clearInterval(interval);
     }
-  }, [processingCount, revalidator]);
+  }, [processingCount, aiProcessingCount, revalidator]);
 
   // Broadcast Channelの初期化（タブ間同期）
   useEffect(() => {

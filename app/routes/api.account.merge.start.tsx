@@ -9,7 +9,6 @@
  * - httpOnly、secure、SameSite=Lax
  */
 
-import { redirect } from "react-router";
 import type { Route } from "./+types/api.account.merge.start";
 import { requireAuth } from "~/services/auth.server";
 import { generateMergeToken } from "~/services/account.server";
@@ -21,13 +20,13 @@ function isValidProvider(provider: string): provider is Provider {
   return ALLOWED_PROVIDERS.includes(provider as Provider);
 }
 
-export async function loader({ request, context }: Route.LoaderArgs) {
+export async function action({ request, context }: Route.ActionArgs) {
   // セッション検証
   const session = await requireAuth(request, context);
 
   // プロバイダーを取得
-  const url = new URL(request.url);
-  const provider = url.searchParams.get("provider");
+  const formData = await request.formData();
+  const provider = formData.get("provider") as string;
 
   if (!provider || !isValidProvider(provider)) {
     throw new Response("無効なプロバイダーです", { status: 400 });
@@ -39,15 +38,59 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 
   // OAuthログインURLを構築
   const baseUrl = context.cloudflare.env.BETTER_AUTH_URL;
-  const callbackUrl = `${baseUrl}/api/account/merge/callback`;
-  const oauthUrl = `${baseUrl}/api/auth/signin/${provider}?callbackURL=${encodeURIComponent(callbackUrl)}`;
+  // マージトークンをクエリパラメータに含めたcallbackURL
+  const callbackUrl = `${baseUrl}/api/account/merge/callback?token=${encodeURIComponent(token)}`;
+  const oauthUrl = `${baseUrl}/api/auth/sign-in/social`;
 
-  // マージトークンをクッキーに設定してOAuthにリダイレクト
-  return redirect(oauthUrl, {
+  // fetchでPOSTリクエストを送信するHTMLを返す
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>アカウント統合中...</title>
+</head>
+<body>
+  <p>認証ページにリダイレクトしています...</p>
+  <script>
+    (async () => {
+      try {
+        const response = await fetch("${oauthUrl}", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            provider: "${provider}",
+            callbackURL: "${callbackUrl}"
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error("認証リクエストに失敗しました");
+        }
+
+        const data = await response.json();
+        if (data.url) {
+          window.location.href = data.url;
+        } else {
+          throw new Error("リダイレクトURLが取得できませんでした");
+        }
+      } catch (error) {
+        console.error("エラー:", error);
+        alert("認証に失敗しました。もう一度お試しください。");
+        window.location.href = "/settings";
+      }
+    })();
+  </script>
+</body>
+</html>
+  `;
+
+  return new Response(html, {
+    status: 200,
     headers: {
-      "Set-Cookie": `merge_token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=300${
-        baseUrl.startsWith("https://") ? "; Secure" : ""
-      }`,
+      "Content-Type": "text/html; charset=UTF-8",
     },
   });
 }

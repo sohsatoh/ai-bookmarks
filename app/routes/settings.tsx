@@ -285,24 +285,30 @@ export default function Settings() {
         </p>
         <div className="space-y-3">
           {["google", "github"].map((provider) => (
-            <a
+            <form
               key={provider}
-              href={`/api/account/merge/start?provider=${provider}`}
-              className="w-full flex items-center gap-3 p-4 border border-yellow-300 rounded-lg hover:bg-yellow-100 transition-colors text-left"
+              method="post"
+              action="/api/account/merge/start"
             >
-              <span className="text-2xl">
-                {PROVIDER_ICONS[provider] || "🔗"}
-              </span>
-              <div>
-                <div className="font-medium text-yellow-900">
-                  {PROVIDER_LABELS[provider] || provider}でログインして統合
+              <input type="hidden" name="provider" value={provider} />
+              <button
+                type="submit"
+                className="w-full flex items-center gap-3 p-4 border border-yellow-300 rounded-lg hover:bg-yellow-100 transition-colors text-left"
+              >
+                <span className="text-2xl">
+                  {PROVIDER_ICONS[provider] || "🔗"}
+                </span>
+                <div>
+                  <div className="font-medium text-yellow-900">
+                    {PROVIDER_LABELS[provider] || provider}でログインして統合
+                  </div>
+                  <div className="text-sm text-yellow-700">
+                    別の{PROVIDER_LABELS[provider] || provider}
+                    アカウントのデータを統合します
+                  </div>
                 </div>
-                <div className="text-sm text-yellow-700">
-                  別の{PROVIDER_LABELS[provider] || provider}
-                  アカウントのデータを統合します
-                </div>
-              </div>
-            </a>
+              </button>
+            </form>
           ))}
         </div>
       </div>

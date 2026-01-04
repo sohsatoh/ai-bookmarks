@@ -43,6 +43,15 @@ import {
   handleReorderCategories,
 } from "~/actions/batch-actions.server";
 import { handleAddBookmark } from "~/actions/add-bookmark-action.server";
+import { authClient } from "~/lib/auth-client";
+
+/**
+ * base64url変換関数（WebAuthn Signal API用）
+ * base64url形式: +と/を-と_に変換し、末尾の=を削除
+ */
+const toBase64Url = (str: string): string => {
+  return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+};
 
 export function meta(_args: Route.MetaArgs) {
   const title = "ホーム - AI Bookmarks";
@@ -253,6 +262,52 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
   useEffect(() => {
     setOptimisticBookmarks(loaderData.bookmarksByCategory);
   }, [loaderData.bookmarksByCategory]);
+
+  // Signal API: ログイン後にパスキー情報を同期
+  useEffect(() => {
+    const syncPasskeys = async () => {
+      if (
+        typeof window !== "undefined" &&
+        window.PublicKeyCredential &&
+        "signalAllAcceptedCredentials" in window.PublicKeyCredential
+      ) {
+        try {
+          // パスキー一覧を取得
+          const { data: passkeys } =
+            await authClient.passkey.listUserPasskeys();
+
+          if (passkeys && Array.isArray(passkeys)) {
+            // 有効なパスキーのリストをプロバイダーに通知
+            const credentialIds = passkeys.map((pk: any) => pk.credentialID);
+            await (
+              window.PublicKeyCredential as any
+            ).signalAllAcceptedCredentials({
+              rpId: window.location.hostname,
+              userId: toBase64Url(loaderData.user.email),
+              allAcceptedCredentialIds: credentialIds,
+            });
+
+            // ユーザー情報もプロバイダーに通知
+            if ("signalCurrentUserDetails" in window.PublicKeyCredential) {
+              await (
+                window.PublicKeyCredential as any
+              ).signalCurrentUserDetails({
+                rpId: window.location.hostname,
+                userId: toBase64Url(loaderData.user.email),
+                name: loaderData.user.email,
+                displayName: loaderData.user.email,
+              });
+            }
+          }
+        } catch (error) {
+          // Signal APIはベストエフォート型なのでエラーは無視
+          console.error("Signal API エラー:", error);
+        }
+      }
+    };
+
+    void syncPasskeys();
+  }, [loaderData.user.email]);
 
   // 表示用データ（楽観的更新がある場合はそちらを優先）
   const displayBookmarks = optimisticBookmarks;

@@ -1,17 +1,20 @@
 /**
  * ログインページ
  *
- * GoogleとGitHubのソーシャルログインを提供します。
+ * GoogleとGitHubのソーシャルログイン、およびパスキー認証を提供します。
  * セキュリティ機能:
  * - CSRF保護（Better Authが自動処理）
  * - セキュアなOAuthフロー（PKCE使用）
  * - レート制限（Better Auth内蔵）
+ * - Passkey Autofill（Conditional UI）対応
  */
 
 import type { LoaderFunctionArgs } from "react-router";
 import { getSession } from "~/services/auth.server";
 import { redirect } from "react-router";
 import type { Route } from "./+types/login";
+import { useEffect, useRef, useState } from "react";
+import { authClient } from "~/lib/auth-client";
 
 export function meta(_args: Route.MetaArgs) {
   return [
@@ -36,6 +39,49 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 }
 
 export default function Login() {
+  const [isPasskeySupported, setIsPasskeySupported] = useState(false);
+  const [passkeyError, setPasskeyError] = useState<string | null>(null);
+  const emailInputRef = useRef<HTMLInputElement>(null);
+
+  // Passkey Autofillのプリロード（Conditional UI）
+  useEffect(() => {
+    // Conditional UI対応チェック
+    const checkPasskeySupport = async () => {
+      if (
+        typeof window !== "undefined" &&
+        window.PublicKeyCredential &&
+        PublicKeyCredential.isConditionalMediationAvailable
+      ) {
+        try {
+          const available =
+            await PublicKeyCredential.isConditionalMediationAvailable();
+          setIsPasskeySupported(available);
+
+          // Conditional UI利用可能な場合、Autofillを有効化
+          if (available) {
+            void authClient.signIn.passkey({
+              autoFill: true,
+              fetchOptions: {
+                onSuccess() {
+                  // 認証成功時にホームにリダイレクト
+                  window.location.href = "/";
+                },
+                onError(context) {
+                  console.error("Passkey認証エラー:", context.error);
+                },
+              },
+            });
+          }
+        } catch (error) {
+          console.error("Passkey対応チェックエラー:", error);
+          setIsPasskeySupported(false);
+        }
+      }
+    };
+
+    void checkPasskeySupport();
+  }, []);
+
   const handleSocialLogin = async (provider: "google" | "github") => {
     try {
       const response = await fetch("/api/auth/sign-in/social", {
@@ -81,6 +127,28 @@ export default function Login() {
     }
   };
 
+  const handlePasskeyLogin = async () => {
+    try {
+      setPasskeyError(null);
+      const { error } = (await authClient.signIn.passkey({
+        fetchOptions: {
+          onSuccess() {
+            // 認証成功時にホームにリダイレクト
+            window.location.href = "/";
+          },
+        },
+      })) as any;
+
+      if (error) {
+        console.error("Passkey認証エラー:", error);
+        setPasskeyError("パスキー認証に失敗しました");
+      }
+    } catch (error) {
+      console.error("Passkey認証エラー:", error);
+      setPasskeyError("パスキー認証に失敗しました");
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
       <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-2xl">
@@ -93,7 +161,72 @@ export default function Login() {
           </p>
         </div>
 
+        {/* Passkey Autofill用の非表示入力フィールド */}
+        {isPasskeySupported && (
+          <div className="hidden">
+            <input
+              ref={emailInputRef}
+              type="text"
+              name="email"
+              autoComplete="username webauthn"
+              tabIndex={-1}
+              aria-label="Passkey autofill field"
+            />
+          </div>
+        )}
+
+        {passkeyError && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+            {passkeyError}
+          </div>
+        )}
+
         <div className="space-y-4">
+          {/* パスキーログインボタン */}
+          {isPasskeySupported && (
+            <div className="space-y-3">
+              <button
+                onClick={handlePasskeyLogin}
+                type="button"
+                className="w-full flex items-center justify-center gap-3 px-4 py-3 border-2 border-indigo-500 rounded-lg shadow-sm bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+              >
+                <svg
+                  className="w-5 h-5 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                  />
+                </svg>
+                <span className="text-sm font-medium text-white">
+                  パスキーでログイン
+                </span>
+              </button>
+              <p className="text-xs text-gray-500 text-center">
+                パスキーが未登録の場合は、まずGoogleまたはGitHubでログインし、設定ページからパスキーを追加してください
+              </p>
+            </div>
+          )}
+
+          {/* 区切り線 */}
+          {isPasskeySupported && (
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">
+                  または他の方法でログイン
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Googleログインボタン */}
           <button
             onClick={() => handleSocialLogin("google")}

@@ -8,6 +8,10 @@ Cloudflare Workers AI、D1データベース、Drizzle ORMを使った自動カ�
 - スマートカテゴリ: 既存カテゴリとの類似性を考慮してカテゴリを選択・統合
 - ファイル管理（Beta）: テキストファイルやPDFのアップロードとAI分析に対応
 - ソーシャル認証: GoogleとGitHubによるOAuth 2.0認証（Better Auth）
+- パスキー認証: 指紋認証やFace IDによるパスワードレス認証に対応
+  - Passkey Autofill（Conditional UI）対応
+  - WebAuthn/FIDO2準拠のセキュアな認証
+  - プラットフォーム認証（指紋、Face ID等）とクロスプラットフォーム認証（YubiKey等）に対応
 - ユーザー分離: ユーザーごとに完全に分離されたブックマーク管理
 - モダンUI: Tailwind CSS v4によるレスポンシブでダークモード対応のデザイン
 - セキュア: Drizzle ORMによるSQLインジェクション対策、CSPヘッダー設定、CSRF保護

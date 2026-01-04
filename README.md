@@ -493,6 +493,18 @@ pnpm run lint
 # Lint自動修正
 pnpm run lint:fix
 
+# テスト実行
+pnpm test
+
+# テストをウォッチモードで実行
+pnpm run test:watch
+
+# テストUIを起動
+pnpm run test:ui
+
+# カバレッジ付きでテスト実行
+pnpm run test:coverage
+
 # D1マイグレーション生成
 pnpm run db:generate
 
@@ -508,6 +520,51 @@ pnpm run db:studio
 # デプロイ
 pnpm run deploy
 ```
+
+## テスト
+
+このプロジェクトには、セキュリティと機能を検証するための包括的なテストが含まれています。
+
+### テストの実行
+
+```bash
+# すべてのテストを実行
+pnpm test
+
+# ウォッチモードで実行（開発中に便利）
+pnpm run test:watch
+
+# ブラウザでテストUIを表示
+pnpm run test:ui
+
+# カバレッジレポートを生成
+pnpm run test:coverage
+```
+
+### テストの範囲
+
+1. セキュリティテスト（`app/services/__tests__/security.server.test.ts`）
+   - XSS対策: HTMLタグのサニタイゼーション
+   - Prompt Injection対策: AIプロンプトの安全性
+   - SQLインジェクション対策: 入力値の検証
+   - SSRF対策: URL検証とプライベートIPブロック
+   - ファイルセキュリティ: ファイル名サニタイゼーション、MIMEタイプ検証、magic number検証
+   - レート制限: リクエスト制限の動作確認
+
+2. データベース操作テスト（`app/services/__tests__/db.server.test.ts`）
+   - ユーザー分離の検証
+   - URL重複チェック
+   - 楽観的ロックの動作確認
+   - IDOR対策
+   - トランザクション処理
+
+### CI/CD
+
+GitHub Actionsを使用した自動テストが設定されています（`.github/workflows/test.yml`）：
+
+- プッシュ時とプルリクエスト時に自動実行
+- 型チェック、Lint、テスト、ビルドを順次実行
+- すべてのチェックが成功した場合のみマージ可能
 
 ## ライセンス
 

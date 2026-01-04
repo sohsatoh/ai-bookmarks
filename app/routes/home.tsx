@@ -1148,9 +1148,9 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                     
                     return (
                     <div key={bookmark.id} className="relative">
-                      {/* 挿入位置インジケーター（前） */}
+                      {/* 挿入位置インジケーター（前） - カード間の境界に表示 */}
                       {showBeforeLine && (
-                        <div className="absolute -top-2 left-0 right-0 h-1 bg-blue-500 dark:bg-blue-400 rounded-full z-10 shadow-lg animate-pulse" />
+                        <div className="absolute -top-2.5 left-0 right-0 h-0.5 bg-blue-500 dark:bg-blue-400 z-20 shadow-lg" />
                       )}
                       
                     <div
@@ -1336,9 +1336,9 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                       </div>
                     </div>
                     
-                      {/* 挿入位置インジケーター（後） */}
+                      {/* 挿入位置インジケーター（後） - カード間の境界に表示 */}
                       {showAfterLine && (
-                        <div className="absolute -bottom-2 left-0 right-0 h-1 bg-blue-500 dark:bg-blue-400 rounded-full z-10 shadow-lg animate-pulse" />
+                        <div className="absolute -bottom-2.5 left-0 right-0 h-0.5 bg-blue-500 dark:bg-blue-400 z-20 shadow-lg" />
                       )}
                     </div>
                     );
@@ -1355,9 +1355,9 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
               
               return (
               <div key={major.majorCategory} id={major.majorCategory} className="space-y-8 scroll-mt-24 relative">
-                {/* カテゴリ挿入位置インジケーター（前） */}
+                {/* カテゴリ挿入位置インジケーター（前） - カテゴリ間の境界に表示 */}
                 {showCategoryBeforeLine && (
-                  <div className="absolute -top-4 left-0 right-0 h-1 bg-blue-500 dark:bg-blue-400 rounded-full z-10 shadow-lg animate-pulse" />
+                  <div className="absolute -top-6 left-0 right-0 h-0.5 bg-blue-500 dark:bg-blue-400 z-20 shadow-lg" />
                 )}
                 
                 <h2
@@ -1395,9 +1395,9 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                         
                         return (
                         <div key={bookmark.id} className="relative">
-                          {/* 挿入位置インジケーター（前） */}
+                          {/* 挿入位置インジケーター（前） - カード間の境界に表示 */}
                           {showBeforeLine && (
-                            <div className="absolute -top-2 left-0 right-0 h-1 bg-blue-500 dark:bg-blue-400 rounded-full z-10 shadow-lg animate-pulse" />
+                            <div className="absolute -top-2.5 left-0 right-0 h-0.5 bg-blue-500 dark:bg-blue-400 z-20 shadow-lg" />
                           )}
                           
                         <div
@@ -1604,9 +1604,9 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                           </div>
                         </div>
                         
-                          {/* 挿入位置インジケーター（後） */}
+                          {/* 挿入位置インジケーター（後） - カード間の境界に表示 */}
                           {showAfterLine && (
-                            <div className="absolute -bottom-2 left-0 right-0 h-1 bg-blue-500 dark:bg-blue-400 rounded-full z-10 shadow-lg animate-pulse" />
+                            <div className="absolute -bottom-2.5 left-0 right-0 h-0.5 bg-blue-500 dark:bg-blue-400 z-20 shadow-lg" />
                           )}
                         </div>
                         );
@@ -1615,9 +1615,9 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                   </div>
                 ))}
                 
-                {/* カテゴリ挿入位置インジケーター（後） */}
+                {/* カテゴリ挿入位置インジケーター（後） - カテゴリ間の境界に表示 */}
                 {showCategoryAfterLine && (
-                  <div className="absolute -bottom-4 left-0 right-0 h-1 bg-blue-500 dark:bg-blue-400 rounded-full z-10 shadow-lg animate-pulse" />
+                  <div className="absolute -bottom-6 left-0 right-0 h-0.5 bg-blue-500 dark:bg-blue-400 z-20 shadow-lg" />
                 )}
               </div>
               );

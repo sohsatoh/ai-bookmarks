@@ -153,6 +153,7 @@ npx wrangler types
 ```typescript
 // ✅ 正しい例
 const result = await db.select().from(bookmarks).where(eq(bookmarks.id, id));
+const result = await db.select().from(bookmarks).where(eq(bookmarks.id, id));
 
 // ❌ 間違った例
 const query = `SELECT * FROM bookmarks WHERE id = ${id}`;
@@ -308,6 +309,7 @@ await db.delete(users).where(eq(users.id, session.user.id));
   - 手動実行: `pnpm run lint`
   - 自動修正: `pnpm run lint:fix`
 - **VS Code拡張機能**:
+- **VS Code拡張機能**:
   - `esbenp.prettier-vscode`（Prettier）
   - `dbaeumer.vscode-eslint`（ESLint）
   - プロジェクトを開くと自動的にインストールが推奨される
@@ -391,6 +393,7 @@ export async function action({ request }) {
 // ✅ 正しい例
 try {
   const bookmark = await db.insert(bookmarks).values(newBookmark).returning();
+  const bookmark = await db.insert(bookmarks).values(newBookmark).returning();
   return bookmark[0];
 } catch (error) {
   console.error("ブックマーク追加エラー:", error);
@@ -411,6 +414,7 @@ try {
 } catch (error) {
   console.error("詳細なエラー情報:", error);
   return json({ error: "処理に失敗しました" }, { status: 500 });
+  return json({ error: "処理に失敗しました" }, { status: 500 });
 }
 ```
 
@@ -424,10 +428,12 @@ try {
 /**
  * ブックマークを追加する
  *
+ *
  * @param url - ブックマークするURL
  * @param context - 実行コンテキスト（D1、AI等）
  * @returns 作成されたブックマーク
  * @throws {Error} URL検証に失敗した場合
+ *
  *
  * 注意: この関数は以下の処理を行います
  * 1. URLの検証（SSRF対策）
@@ -435,6 +441,10 @@ try {
  * 3. AIによるカテゴリ分類
  * 4. データベースへの保存
  */
+async function addBookmark(
+  url: string,
+  context: AppLoadContext
+): Promise<Bookmark> {
 async function addBookmark(
   url: string,
   context: AppLoadContext

@@ -87,6 +87,98 @@ export default function Privacy() {
 
             <section>
               <h2 className="text-2xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4">
+                第3条の2（AIによる処理について）
+              </h2>
+              <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-3">
+                本サービスは、ブックマークの自動分類およびメタデータ生成のために、Cloudflare
+                Workers AIを利用しています。
+              </p>
+              <ol className="list-decimal list-inside space-y-2 text-gray-700 dark:text-gray-300 pl-4">
+                <li>
+                  <span className="font-semibold">使用するAIモデル</span>
+                  <ul className="list-disc list-inside space-y-1 text-gray-700 dark:text-gray-300 pl-6 mt-1">
+                    <li>
+                      モデル名: Cloudflare Workers AI (@cf/openai/gpt-oss-120b)
+                    </li>
+                    <li>
+                      用途:
+                      ブックマークされたWebページのタイトル、説明文、カテゴリの自動生成
+                    </li>
+                  </ul>
+                </li>
+                <li>
+                  <span className="font-semibold">AIへのデータ送信</span>
+                  <p className="text-gray-700 dark:text-gray-300 leading-relaxed mt-1 pl-6">
+                    ブックマークを追加する際、以下の情報がCloudflare Workers
+                    AIに送信されます。
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 text-gray-700 dark:text-gray-300 pl-6 mt-1">
+                    <li>ブックマークされたWebページのURL</li>
+                    <li>Webページのタイトル</li>
+                    <li>Webページの説明文（metaタグから取得）</li>
+                    <li>Webページの本文の一部（最大1500文字）</li>
+                  </ul>
+                </li>
+                <li>
+                  <span className="font-semibold">
+                    AIモデルの学習利用について
+                  </span>
+                  <p className="text-gray-700 dark:text-gray-300 leading-relaxed mt-1 pl-6">
+                    Cloudflare Workers
+                    AIは、Cloudflareのプライバシーポリシーに従って運用されています。Cloudflareの公式情報によれば、Workers
+                    AIに送信されたデータは以下のように取り扱われます。
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 text-gray-700 dark:text-gray-300 pl-6 mt-1">
+                    <li>
+                      Cloudflareは、Workers
+                      AIへの入力データをAIモデルの学習には使用しません
+                    </li>
+                    <li>
+                      送信されたデータは、リクエストの処理完了後に保持されません
+                    </li>
+                    <li>
+                      詳細については、Cloudflareのプライバシーポリシー（https://www.cloudflare.com/privacypolicy/）をご参照ください
+                    </li>
+                  </ul>
+                </li>
+                <li>
+                  <span className="font-semibold">データ保持について</span>
+                  <ul className="list-disc list-inside space-y-1 text-gray-700 dark:text-gray-300 pl-6 mt-1">
+                    <li>
+                      AIによって生成されたカテゴリ、説明文は、本サービスのデータベース（Cloudflare
+                      D1）に保存されます
+                    </li>
+                    <li>
+                      元のWebページの本文データは保存されず、処理完了後に破棄されます
+                    </li>
+                    <li>
+                      保存されたデータは、ユーザー自身がブックマークを削除することで完全に削除されます
+                    </li>
+                  </ul>
+                </li>
+                <li>
+                  <span className="font-semibold">セキュリティ対策</span>
+                  <ul className="list-disc list-inside space-y-1 text-gray-700 dark:text-gray-300 pl-6 mt-1">
+                    <li>
+                      AIへの送信前に、すべての入力データは厳格なサニタイズ処理を実施
+                    </li>
+                    <li>
+                      Prompt
+                      Injection（プロンプトインジェクション）攻撃への対策を実装
+                    </li>
+                    <li>
+                      AIからの応答は、XSS（クロスサイトスクリプティング）対策のため、危険な文字列を検出・除去
+                    </li>
+                    <li>
+                      詳細なセキュリティ対策については、本サービスのGitHubリポジトリで公開しています
+                    </li>
+                  </ul>
+                </li>
+              </ol>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-[#1D1D1F] dark:text-[#F5F5F7] mb-4">
                 第4条（利用目的の変更）
               </h2>
               <ol className="list-decimal list-inside space-y-2 text-gray-700 dark:text-gray-300 pl-4">

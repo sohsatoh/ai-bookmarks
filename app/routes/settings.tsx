@@ -23,7 +23,7 @@ import { useState, useEffect } from "react";
 import { authClient } from "~/lib/auth-client";
 import { ToastContainer, type ToastMessage } from "~/components/Toast";
 import type { Passkey } from "~/types/better-auth";
-
+import { generatePasskeyDisplayName } from "~/utils/passkey-utils";
 /**
  * base64url変換関数（WebAuthn Signal API用）
  * base64url形式: +と/を-と_に変換し、末尾の=を削除
@@ -149,7 +149,44 @@ export default function Settings() {
         }
 
         if (data) {
-          setPasskeys(data as unknown as Passkey[]);
+          // パスキー名が未設定の場合、AAGUIDから自動生成
+          const passkeyList = data as unknown as Passkey[];
+          const existingNames = passkeyList
+            .map((pk) => pk.name)
+            .filter((name): name is string => !!name);
+
+          const passkeyWithNames = passkeyList.map((pk) => ({
+            ...pk,
+            name:
+              pk.name ||
+              generatePasskeyDisplayName(
+                {
+                  aaguid: pk.aaguid,
+                  deviceType: pk.deviceType,
+                  name: pk.name,
+                },
+                existingNames
+              ),
+          }));
+
+          setPasskeys(passkeyWithNames);
+
+          // 名前が自動生成されたパスキーをデータベースに保存
+          for (const pk of passkeyWithNames) {
+            const originalPasskey = passkeyList.find(
+              (orig) => orig.id === pk.id
+            );
+            if (!originalPasskey?.name && pk.name) {
+              try {
+                await authClient.passkey.updatePasskey({
+                  id: pk.id,
+                  name: pk.name,
+                });
+              } catch (updateError) {
+                console.error("パスキー名の自動更新エラー:", updateError);
+              }
+            }
+          }
 
           // Signal API: 有効なパスキーのリストをプロバイダーに通知
           if (
@@ -187,8 +224,10 @@ export default function Settings() {
   const handleAddPasskey = async () => {
     try {
       setIsAddingPasskey(true);
+
+      // パスキーを追加（名前は後で自動設定）
       const { data, error } = await authClient.passkey.addPasskey({
-        name: newPasskeyName || user.email,
+        name: newPasskeyName || undefined,
       });
 
       if (error) {
@@ -222,7 +261,44 @@ export default function Settings() {
         const { data: updatedData } =
           await authClient.passkey.listUserPasskeys();
         if (updatedData) {
-          setPasskeys(updatedData as unknown as Passkey[]);
+          // パスキー名が未設定の場合、AAGUIDから自動生成
+          const passkeyList = updatedData as unknown as Passkey[];
+          const existingNames = passkeyList
+            .map((pk) => pk.name)
+            .filter((name): name is string => !!name);
+
+          const passkeyWithNames = passkeyList.map((pk) => ({
+            ...pk,
+            name:
+              pk.name ||
+              generatePasskeyDisplayName(
+                {
+                  aaguid: pk.aaguid,
+                  deviceType: pk.deviceType,
+                  name: pk.name,
+                },
+                existingNames
+              ),
+          }));
+
+          setPasskeys(passkeyWithNames);
+
+          // 名前が自動生成されたパスキーをデータベースに保存
+          for (const pk of passkeyWithNames) {
+            const originalPasskey = passkeyList.find(
+              (orig) => orig.id === pk.id
+            );
+            if (!originalPasskey?.name && pk.name) {
+              try {
+                await authClient.passkey.updatePasskey({
+                  id: pk.id,
+                  name: pk.name,
+                });
+              } catch (updateError) {
+                console.error("パスキー名の自動更新エラー:", updateError);
+              }
+            }
+          }
 
           // Signal API: パスキー追加後にプロバイダーに通知
           if (
@@ -651,11 +727,11 @@ export default function Settings() {
                 type="text"
                 value={newPasskeyName}
                 onChange={(e) => setNewPasskeyName(e.target.value)}
-                placeholder={user.email}
+                placeholder="空欄の場合は自動で命名されます（例: Touch ID、YubiKey 5 Series）"
                 className="w-full px-3 py-2 border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-600"
               />
               <p className="text-xs text-indigo-700 dark:text-indigo-400 mt-1">
-                例: iPhone、MacBook、YubiKey など
+                認証器の種類が自動的に検出され、適切な名前が設定されます
               </p>
             </div>
             <button

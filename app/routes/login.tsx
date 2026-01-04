@@ -48,8 +48,8 @@ export default function Login() {
     // Conditional UI対応チェック
     const checkPasskeySupport = async () => {
       if (
-        typeof window !== "undefined" &&
-        window.PublicKeyCredential &&
+        typeof globalThis.window !== "undefined" &&
+        globalThis.window.PublicKeyCredential &&
         PublicKeyCredential.isConditionalMediationAvailable
       ) {
         try {

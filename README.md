@@ -50,17 +50,38 @@ Better Auth認証に必要な環境変数を設定します。
 
 #### 2.3 環境変数の設定
 
-ローカル開発用（.dev.vars）:
+2つの方法から選択できます：
+
+方法A: 従来の方法（.dev.varsファイル）
 
 ```bash
-# .dev.vars（Gitにコミットしない）
-BETTER_AUTH_URL=http://localhost:5173
-BETTER_AUTH_SECRET=your-random-secret-here
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
-GITHUB_CLIENT_ID=your-github-client-id
-GITHUB_CLIENT_SECRET=your-github-client-secret
+# テンプレートをコピー
+cp .dev.vars.example .dev.vars
+
+# .dev.varsを編集して実際の値を入力
+# または
+pnpm run setup:env
 ```
+
+方法B: 1Password CLI（推奨）
+
+1Password CLIを使用すると、シークレットを安全に管理できます。
+
+```bash
+# 1Password CLIをインストール
+brew install 1password-cli
+
+# .dev.varsを自動生成
+pnpm run setup:env:1p
+```
+
+注意: `.env.1password`ファイルには1Passwordへの参照のみが含まれており、実際のシークレットは含まれていません。事前に1Passwordに以下の項目を作成してください：
+
+- `ai-bookmarks/BETTER_AUTH_SECRET`
+- `ai-bookmarks/GOOGLE_CLIENT_ID`
+- `ai-bookmarks/GOOGLE_CLIENT_SECRET`
+- `ai-bookmarks/GITHUB_CLIENT_ID`
+- `ai-bookmarks/GITHUB_CLIENT_SECRET`
 
 本番環境用:
 
@@ -374,6 +395,13 @@ pnpm run deploy
 ## 開発コマンド
 
 ```bash
+# 環境変数のセットアップ（初回のみ）
+# 方法A: 従来の方法
+pnpm run setup:env
+
+# 方法B: 1Password CLI
+pnpm run setup:env:1p
+
 # 開発サーバー起動
 pnpm run dev
 

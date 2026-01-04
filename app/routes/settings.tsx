@@ -24,6 +24,10 @@ import { authClient } from "~/lib/auth-client";
 import { ToastContainer, type ToastMessage } from "~/components/Toast";
 import type { Passkey } from "~/types/better-auth";
 import { generatePasskeyDisplayName } from "~/utils/passkey-utils";
+import {
+  validatePasskeyName,
+  sanitizePasskeyName,
+} from "~/utils/passkey-security";
 /**
  * base64url変換関数（WebAuthn Signal API用）
  * base64url形式: +と/を-と_に変換し、末尾の=を削除
@@ -225,9 +229,30 @@ export default function Settings() {
     try {
       setIsAddingPasskey(true);
 
-      // パスキーを追加（名前は後で自動設定）
+      // 入力検証
+      if (newPasskeyName) {
+        const validation = validatePasskeyName(newPasskeyName);
+        if (!validation.isValid) {
+          setToasts((prev) => [
+            ...prev,
+            {
+              id: Date.now().toString(),
+              type: "error",
+              title: "入力エラー",
+              message: validation.error || "無効な入力です",
+            },
+          ]);
+          setIsAddingPasskey(false);
+          return;
+        }
+      }
+
+      // パスキーを追加（名前はサニタイズして設定）
+      const sanitizedName = newPasskeyName
+        ? sanitizePasskeyName(newPasskeyName)
+        : undefined;
       const { data, error } = await authClient.passkey.addPasskey({
-        name: newPasskeyName || undefined,
+        name: sanitizedName,
       });
 
       if (error) {
@@ -353,6 +378,22 @@ export default function Settings() {
 
   // パスキーを削除
   const handleDeletePasskey = async (id: string) => {
+    // 最後の認証方法チェック（セキュリティ: ログイン不能防止）
+    const remainingPasskeys = passkeys.filter((pk) => pk.id !== id);
+    if (remainingPasskeys.length === 0 && userAccounts.length === 0) {
+      setToasts((prev) => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          type: "error",
+          title: "エラー",
+          message:
+            "最後のパスキーは削除できません。他の認証方法（GoogleまたはGitHub）を追加してから削除してください。",
+        },
+      ]);
+      return;
+    }
+
     if (!confirm("このパスキーを削除しますか？")) {
       return;
     }
@@ -425,9 +466,26 @@ export default function Settings() {
   // パスキー名を更新
   const handleUpdatePasskeyName = async (id: string) => {
     try {
+      // 入力検証
+      const validation = validatePasskeyName(editingPasskeyName);
+      if (!validation.isValid) {
+        setToasts((prev) => [
+          ...prev,
+          {
+            id: Date.now().toString(),
+            type: "error",
+            title: "入力エラー",
+            message: validation.error || "無効な入力です",
+          },
+        ]);
+        return;
+      }
+
+      // サニタイズして更新
+      const sanitizedName = sanitizePasskeyName(editingPasskeyName);
       const { error } = await authClient.passkey.updatePasskey({
         id,
-        name: editingPasskeyName,
+        name: sanitizedName,
       });
 
       if (error) {
@@ -653,6 +711,7 @@ export default function Settings() {
                         type="text"
                         value={editingPasskeyName}
                         onChange={(e) => setEditingPasskeyName(e.target.value)}
+                        maxLength={255}
                         className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded"
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
@@ -664,15 +723,16 @@ export default function Settings() {
                         }}
                       />
                     ) : (
-                      <div
-                        className="font-medium text-gray-900 dark:text-white cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400"
+                      <button
+                        type="button"
+                        className="font-medium text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 text-left w-full"
                         onClick={() => {
                           setEditingPasskeyId(passkey.id);
                           setEditingPasskeyName(passkey.name || "");
                         }}
                       >
                         {passkey.name || "名前なし"}
-                      </div>
+                      </button>
                     )}
                     <div className="text-sm text-gray-600 dark:text-gray-400">
                       登録日:{" "}
@@ -720,13 +780,18 @@ export default function Settings() {
           </h3>
           <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-indigo-900 dark:text-indigo-400 mb-1">
+              <label
+                htmlFor="passkey-name-input"
+                className="block text-sm font-medium text-indigo-900 dark:text-indigo-400 mb-1"
+              >
                 パスキー名（任意）
               </label>
               <input
+                id="passkey-name-input"
                 type="text"
                 value={newPasskeyName}
                 onChange={(e) => setNewPasskeyName(e.target.value)}
+                maxLength={255}
                 placeholder="空欄の場合は自動で命名されます（例: Touch ID、YubiKey 5 Series）"
                 className="w-full px-3 py-2 border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-600"
               />
@@ -837,13 +902,18 @@ export default function Settings() {
         ) : (
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-red-900 dark:text-red-400 mb-2">
+              <label
+                htmlFor="delete-confirm-input"
+                className="block text-sm font-medium text-red-900 dark:text-red-400 mb-2"
+              >
                 確認のため「削除する」と入力してください
               </label>
               <input
+                id="delete-confirm-input"
                 type="text"
                 value={deleteConfirmText}
                 onChange={(e) => setDeleteConfirmText(e.target.value)}
+                maxLength={10}
                 className="w-full px-3 py-2 border border-red-300 dark:border-red-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-600"
                 placeholder="削除する"
               />

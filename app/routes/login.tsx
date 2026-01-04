@@ -48,8 +48,8 @@ export default function Login() {
     // Conditional UI対応チェック
     const checkPasskeySupport = async () => {
       if (
-        typeof globalThis.window !== "undefined" &&
-        globalThis.window.PublicKeyCredential &&
+        typeof window !== "undefined" &&
+        window.PublicKeyCredential &&
         PublicKeyCredential.isConditionalMediationAvailable
       ) {
         try {
@@ -169,7 +169,8 @@ export default function Login() {
               type="text"
               name="email"
               autoComplete="username webauthn"
-              aria-hidden="true"
+              tabIndex={-1}
+              aria-label="Passkey autofill field"
             />
           </div>
         )}

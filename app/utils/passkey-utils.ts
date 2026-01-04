@@ -9,7 +9,6 @@
 const AAGUID_MAPPING: Record<string, string> = {
   // Apple
   "00000000-0000-0000-0000-000000000000": "Touch ID または Face ID",
-  "adce0002-35bc-c60a-648b-0b25f1f05503": "Chrome on Mac",
   "08987058-cadc-4b81-b6e1-30de50dcbe96": "Windows Hello",
   "9ddd1817-af5a-4672-a2b9-3e3dd95000a9": "Windows Hello",
 
@@ -23,7 +22,7 @@ const AAGUID_MAPPING: Record<string, string> = {
   "c1f9a0bc-1dd2-404a-b27f-8e29047a43fd": "YubiKey 5 Bio",
   "85203421-48f9-4355-9bc8-8a53846e5083": "YubiKey Bio",
 
-  // Google
+  // Google / Chrome
   "ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4": "Google Password Manager",
   "adce0002-35bc-c60a-648b-0b25f1f05503": "Chrome Browser",
 

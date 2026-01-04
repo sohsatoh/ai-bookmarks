@@ -37,13 +37,12 @@
   },
   /**
    * Environment Variables
-   * Better Auth用の環境変数（本番環境では`wrangler secret put`で設定）
+   * 環境変数はセキュリティのため以下で管理:
+   * - ローカル開発: .dev.vars ファイル
+   * - 本番環境: wrangler secret put コマンド
+   *
+   * 必要な環境変数は .dev.vars.example を参照してください
    */
-  "vars": {
-    "BETTER_AUTH_URL": "http://localhost:5173",
-    "GOOGLE_CLIENT_ID": "",
-    "GITHUB_CLIENT_ID": "",
-  },
   /**
    * Smart Placement
    * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement

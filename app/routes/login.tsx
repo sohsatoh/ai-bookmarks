@@ -32,18 +32,35 @@ export default function Login() {
         },
         body: JSON.stringify({
           provider,
-          callbackURL: window.location.origin,
+          callbackURL: globalThis.location.origin,
         }),
       });
 
       if (!response.ok) {
+        // レスポンスがJSONかどうかを確認
+        const contentType = response.headers.get("content-type");
+        if (contentType?.includes("application/json")) {
+          const errorData = await response.json();
+          console.error("ログインエラー:", errorData);
+        } else {
+          const errorText = await response.text();
+          console.error("ログインエラー:", errorText);
+        }
         throw new Error("ログインに失敗しました");
       }
 
-      const data = (await response.json()) as { url?: string };
+      // レスポンスがJSONかどうかを確認
+      const contentType = response.headers.get("content-type");
+      if (!contentType?.includes("application/json")) {
+        const responseText = await response.text();
+        console.error("予期しないレスポンス:", responseText);
+        throw new Error("予期しないレスポンスが返されました");
+      }
+
+      const data = await response.json() as { url?: string };
       // OAuthプロバイダーのURLにリダイレクト
       if (data.url) {
-        window.location.href = data.url;
+        globalThis.location.href = data.url;
       }
     } catch (error) {
       console.error("ログインエラー:", error);

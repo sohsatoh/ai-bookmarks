@@ -16,11 +16,39 @@ import { createAuth } from "~/services/auth.server";
  * Better AuthのすべてのHTTPメソッドを処理
  */
 export async function loader({ request, context }: LoaderFunctionArgs) {
-  const auth = createAuth(context);
-  return auth.handler(request);
+  try {
+    const auth = createAuth(context);
+    return await auth.handler(request);
+  } catch (error) {
+    console.error("認証エラー (loader):", error);
+    return new Response(
+      JSON.stringify({
+        error: "認証処理中にエラーが発生しました",
+        details: error instanceof Error ? error.message : "Unknown error",
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
 }
 
 export async function action({ request, context }: ActionFunctionArgs) {
-  const auth = createAuth(context);
-  return auth.handler(request);
+  try {
+    const auth = createAuth(context);
+    return await auth.handler(request);
+  } catch (error) {
+    console.error("認証エラー (action):", error);
+    return new Response(
+      JSON.stringify({
+        error: "認証処理中にエラーが発生しました",
+        details: error instanceof Error ? error.message : "Unknown error",
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
 }

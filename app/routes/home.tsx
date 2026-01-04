@@ -24,6 +24,11 @@ import { and, eq } from "drizzle-orm";
 import { generateBookmarkMetadata } from "~/services/ai.server";
 import { fetchPageMetadata, validateUrl } from "~/services/scraper.server";
 import {
+  getClientIp,
+  checkMutationRateLimit,
+  checkBookmarkAddRateLimit,
+} from "~/services/rate-limit.server";
+import {
   initBroadcastChannel,
   broadcast,
   closeBroadcastChannel,
@@ -95,8 +100,6 @@ export async function action({ request, context }: Route.ActionArgs) {
   }
 
   // DoS対策: レート制限チェック（一般的な変更操作）
-  const { getClientIp, checkMutationRateLimit } =
-    await import("~/services/rate-limit.server");
   const clientIp = getClientIp(request);
   const rateLimit = checkMutationRateLimit(clientIp, session.user.id);
 
@@ -765,8 +768,6 @@ export async function action({ request, context }: Route.ActionArgs) {
   const url = formData.get("url") as string;
 
   // AI処理を含むため、専用のレート制限チェック
-  const { checkBookmarkAddRateLimit } =
-    await import("~/services/rate-limit.server");
   const bookmarkAddRateLimit = checkBookmarkAddRateLimit(
     clientIp,
     session.user.id

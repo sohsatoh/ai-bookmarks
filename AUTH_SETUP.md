@@ -148,13 +148,13 @@ app/
 │   └── home.tsx                # 認証が必要なホームページ
 ├── components/
 │   └── Header.tsx              # ユーザー情報表示ヘッダー
-├── db/
-│   └── schema.ts               # データベーススキーマ（users, sessions等）
-└── types/
-    └── env.d.ts                # 環境変数の型定義
+└── db/
+    └── schema.ts               # データベーススキーマ（users, sessions等）
 
 migrations/
 └── 0003_clumsy_the_executioner.sql  # 認証テーブル追加マイグレーション
+
+worker-configuration.d.ts       # 環境変数の型定義（wrangler typesで自動生成）
 
 .env.example                    # 環境変数テンプレート（一般用）
 .dev.vars.example               # 環境変数テンプレート（Cloudflare Workers用）
@@ -194,8 +194,8 @@ migrations/
    - wrangler.jsoncで`compatibility_flags: ["nodejs_compat"]`が有効か確認
 
 2. **型エラー**
-   - `pnpm wrangler types`を実行
-   - `app/types/env.d.ts`に環境変数の型定義があるか確認
+   - `pnpm wrangler types`を実行して型定義を再生成
+   - `worker-configuration.d.ts`に環境変数の型が正しく生成されているか確認
 
 ## 参考リンク
 

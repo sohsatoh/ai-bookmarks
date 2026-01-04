@@ -24,19 +24,31 @@
 ### 必須タスク
 コードを変更する際は、以下を必ず実行すること：
 
-1. **ビルドの確認**
+1. **コードフォーマット**
+   ```bash
+   pnpm run format
+   ```
+   Prettierでコードを自動フォーマット（保存時に自動実行も可能）
+
+2. **Lintチェック**
+   ```bash
+   pnpm run lint
+   ```
+   ESLintでコード品質をチェック（自動修正は`pnpm run lint:fix`）
+
+3. **ビルドの確認**
    ```bash
    pnpm build
    ```
    ビルドが成功することを確認してから変更をコミット
 
-2. **型チェック**
+4. **型チェック**
    ```bash
    pnpm run typecheck
    ```
    TypeScriptの型エラーがないことを確認
 
-3. **ドキュメントの更新**
+5. **ドキュメントの更新**
    - 機能追加や重要な変更がある場合、README.mdを更新
    - セキュリティに関わる変更がある場合、SECURITY.mdを更新
    - このAGENTS.mdに新しいベストプラクティスがあれば追記
@@ -188,6 +200,20 @@ if (title.length > AI_CONFIG.TITLE_MAX_LENGTH) {
 
 ## 💻 コーディング規約
 
+### コードフォーマットとLint
+- **Prettier**: コードフォーマッターとして使用
+  - 保存時に自動フォーマット（VS Codeで設定済み）
+  - 手動実行: `pnpm run format`
+  - チェックのみ: `pnpm run format:check`
+- **ESLint**: コード品質チェックツールとして使用
+  - 保存時に自動修正（VS Codeで設定済み）
+  - 手動実行: `pnpm run lint`
+  - 自動修正: `pnpm run lint:fix`
+- **VS Code拡張機能**: 
+  - `esbenp.prettier-vscode`（Prettier）
+  - `dbaeumer.vscode-eslint`（ESLint）
+  - プロジェクトを開くと自動的にインストールが推奨される
+
 ### TypeScript
 - **strictモード**: 常に有効
 - **型定義**: すべての関数、変数に適切な型を付ける
@@ -293,6 +319,18 @@ async function addBookmark(url: string, context: AppLoadContext): Promise<Bookma
 # 開発サーバー起動
 pnpm run dev
 
+# コードフォーマット
+pnpm run format
+
+# フォーマットチェック
+pnpm run format:check
+
+# Lintチェック
+pnpm run lint
+
+# Lint自動修正
+pnpm run lint:fix
+
 # 本番ビルド（必須）
 pnpm run build
 
@@ -319,6 +357,8 @@ pnpm run db:studio
 ```
 
 ### ビルド前の確認事項
+- [ ] `pnpm run format:check`でフォーマットが整っている
+- [ ] `pnpm run lint`でESLintエラーがない
 - [ ] `pnpm run typecheck`が成功する
 - [ ] `pnpm run build`が成功する
 - [ ] 追加したコードにセキュリティ上の問題がない
@@ -488,4 +528,5 @@ npx wrangler types
 
 ## 🔄 更新履歴
 
+- 2026-01-04: PrettierとESLintの設定を追加 - VS Code拡張機能推奨、フォーマット・Lintルールを業界標準に設定
 - 2026-01-03: 初版作成 - 包括的な開発ガイドラインを作成

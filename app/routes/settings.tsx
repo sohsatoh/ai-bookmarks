@@ -170,7 +170,7 @@ export default function Settings() {
       <div className="flex items-center gap-4 mb-8">
         <a
           href="/home"
-          className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+          className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
         >
           <svg
             className="w-5 h-5"
@@ -187,42 +187,52 @@ export default function Settings() {
           </svg>
           <span>ホームに戻る</span>
         </a>
-        <h1 className="text-3xl font-bold flex-1">アカウント設定</h1>
+        <h1 className="text-3xl font-bold flex-1 text-gray-900 dark:text-white">
+          アカウント設定
+        </h1>
       </div>
 
       {/* ユーザー情報 */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 className="text-xl font-semibold mb-4">ユーザー情報</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+        <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
+          ユーザー情報
+        </h2>
         <div className="space-y-2">
           <div>
-            <span className="text-gray-600">メール:</span>{" "}
-            <span className="font-medium">{user.email}</span>
+            <span className="text-gray-600 dark:text-gray-400">メール:</span>{" "}
+            <span className="font-medium text-gray-900 dark:text-white">
+              {user.email}
+            </span>
           </div>
         </div>
       </div>
 
       {/* 連携済みアカウント */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 className="text-xl font-semibold mb-4">連携済みアカウント</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+        <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
+          連携済みアカウント
+        </h2>
         {userAccounts.length === 0 ? (
-          <p className="text-gray-600">連携済みアカウントがありません。</p>
+          <p className="text-gray-600 dark:text-gray-400">
+            連携済みアカウントがありません。
+          </p>
         ) : (
           <div className="space-y-3">
             {userAccounts.map((account) => (
               <div
                 key={account.id}
-                className="flex items-center justify-between p-4 border rounded-lg"
+                className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900"
               >
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">
                     {PROVIDER_ICONS[account.providerId] || "🔗"}
                   </span>
                   <div>
-                    <div className="font-medium">
+                    <div className="font-medium text-gray-900 dark:text-white">
                       {PROVIDER_LABELS[account.providerId] ||
                         account.providerId}
                     </div>
-                    <div className="text-sm text-gray-600">
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
                       {account.createdAt
                         ? `連携日: ${new Date(account.createdAt).toLocaleDateString("ja-JP")}`
                         : "連携済み"}
@@ -236,7 +246,7 @@ export default function Settings() {
                     disabled={
                       isLastAccount || unlinkFetcher.state === "submitting"
                     }
-                    className="px-4 py-2 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-2 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded hover:bg-red-200 dark:hover:bg-red-900/50 disabled:opacity-50 disabled:cursor-not-allowed"
                     title={
                       isLastAccount
                         ? "最後のアカウントは削除できません"
@@ -256,8 +266,10 @@ export default function Settings() {
 
       {/* 新規アカウント連携 */}
       {availableProviders.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">新規アカウント連携</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
+            新規アカウント連携
+          </h2>
           <div className="space-y-3">
             {availableProviders.map((provider) => (
               <button
@@ -266,16 +278,16 @@ export default function Settings() {
                   handleAccountLink(provider as "google" | "github")
                 }
                 type="button"
-                className="w-full flex items-center gap-3 p-4 border rounded-lg hover:bg-gray-50 transition-colors text-left"
+                className="w-full flex items-center gap-3 p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-left bg-white dark:bg-gray-900"
               >
                 <span className="text-2xl">
                   {PROVIDER_ICONS[provider] || "🔗"}
                 </span>
                 <div>
-                  <div className="font-medium">
+                  <div className="font-medium text-gray-900 dark:text-white">
                     {PROVIDER_LABELS[provider] || provider}で連携
                   </div>
-                  <div className="text-sm text-gray-600">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
                     {PROVIDER_LABELS[provider] || provider}
                     アカウントと連携します
                   </div>
@@ -326,30 +338,32 @@ export default function Settings() {
       </div> */}
 
       {/* アカウント削除 */}
-      <div className="bg-red-50 border-2 border-red-200 rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-red-900 mb-4">危険な操作</h2>
-        <p className="text-red-800 mb-4">
+      <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-lg p-6">
+        <h2 className="text-xl font-semibold text-red-900 dark:text-red-400 mb-4">
+          危険な操作
+        </h2>
+        <p className="text-red-800 dark:text-red-300 mb-4">
           アカウントを削除すると、すべてのブックマーク、カテゴリ、設定が完全に削除されます。この操作は取り消せません。
         </p>
 
         {!showDeleteConfirm ? (
           <button
             onClick={() => setShowDeleteConfirm(true)}
-            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+            className="px-4 py-2 bg-red-600 dark:bg-red-700 text-white rounded hover:bg-red-700 dark:hover:bg-red-800"
           >
             アカウントを削除
           </button>
         ) : (
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-red-900 mb-2">
+              <label className="block text-sm font-medium text-red-900 dark:text-red-400 mb-2">
                 確認のため「削除する」と入力してください
               </label>
               <input
                 type="text"
                 value={deleteConfirmText}
                 onChange={(e) => setDeleteConfirmText(e.target.value)}
-                className="w-full px-3 py-2 border border-red-300 rounded focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="w-full px-3 py-2 border border-red-300 dark:border-red-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-600"
                 placeholder="削除する"
               />
             </div>
@@ -361,7 +375,7 @@ export default function Settings() {
                     deleteConfirmText !== "削除する" ||
                     deleteFetcher.state === "submitting"
                   }
-                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-red-600 dark:bg-red-700 text-white rounded hover:bg-red-700 dark:hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {deleteFetcher.state === "submitting"
                     ? "削除中..."
@@ -373,7 +387,7 @@ export default function Settings() {
                   setShowDeleteConfirm(false);
                   setDeleteConfirmText("");
                 }}
-                className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                className="px-4 py-2 bg-gray-300 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-400 dark:hover:bg-gray-600"
               >
                 キャンセル
               </button>

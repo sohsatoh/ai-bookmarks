@@ -1,7 +1,10 @@
 import { drizzle } from "drizzle-orm/d1";
 import { eq, asc } from "drizzle-orm";
 import { bookmarks, categories } from "~/db/schema";
-import type { BookmarkWithCategories, BookmarksByCategory } from "~/types/bookmark";
+import type {
+  BookmarkWithCategories,
+  BookmarksByCategory,
+} from "~/types/bookmark";
 
 /**
  * Drizzle ORMのインスタンスを取得
@@ -13,9 +16,18 @@ export function getDb(d1Database: D1Database) {
 /**
  * カテゴリを取得または作成
  */
-export async function getOrCreateCategory(db: ReturnType<typeof getDb>, name: string, type: "major" | "minor", parentId?: number): Promise<number> {
+export async function getOrCreateCategory(
+  db: ReturnType<typeof getDb>,
+  name: string,
+  type: "major" | "minor",
+  parentId?: number
+): Promise<number> {
   // 既存のカテゴリを検索
-  const existing = await db.select().from(categories).where(eq(categories.name, name)).limit(1);
+  const existing = await db
+    .select()
+    .from(categories)
+    .where(eq(categories.name, name))
+    .limit(1);
 
   if (existing.length > 0) {
     return existing[0].id;
@@ -38,7 +50,9 @@ export async function getOrCreateCategory(db: ReturnType<typeof getDb>, name: st
 /**
  * 既存のカテゴリ名を取得（AI生成時の参考用）
  */
-export async function getExistingCategories(db: ReturnType<typeof getDb>): Promise<{ major: string[]; minor: string[] }> {
+export async function getExistingCategories(
+  db: ReturnType<typeof getDb>
+): Promise<{ major: string[]; minor: string[] }> {
   const allCategories = await db.select().from(categories);
 
   return {
@@ -82,7 +96,9 @@ export async function createBookmark(
 /**
  * 全ブックマークをカテゴリ別に取得
  */
-export async function getAllBookmarks(db: ReturnType<typeof getDb>): Promise<BookmarksByCategory[]> {
+export async function getAllBookmarks(
+  db: ReturnType<typeof getDb>
+): Promise<BookmarksByCategory[]> {
   // カテゴリとブックマークを並行取得（displayOrderでソート）
   const [allCategories, results] = await Promise.all([
     db.select().from(categories).orderBy(asc(categories.displayOrder)),
@@ -164,15 +180,25 @@ export async function getAllBookmarks(db: ReturnType<typeof getDb>): Promise<Boo
 /**
  * ブックマークを削除
  */
-export async function deleteBookmark(db: ReturnType<typeof getDb>, id: number): Promise<void> {
+export async function deleteBookmark(
+  db: ReturnType<typeof getDb>,
+  id: number
+): Promise<void> {
   await db.delete(bookmarks).where(eq(bookmarks.id, id));
 }
 
 /**
  * URLの重複チェック
  */
-export async function checkDuplicateUrl(db: ReturnType<typeof getDb>, url: string): Promise<boolean> {
-  const existing = await db.select().from(bookmarks).where(eq(bookmarks.url, url)).limit(1);
+export async function checkDuplicateUrl(
+  db: ReturnType<typeof getDb>,
+  url: string
+): Promise<boolean> {
+  const existing = await db
+    .select()
+    .from(bookmarks)
+    .where(eq(bookmarks.url, url))
+    .limit(1);
 
   return existing.length > 0;
 }
@@ -180,10 +206,19 @@ export async function checkDuplicateUrl(db: ReturnType<typeof getDb>, url: strin
 /**
  * ブックマークの表示順序を更新（楽観的ロック付き）
  */
-export async function updateBookmarkOrder(db: ReturnType<typeof getDb>, bookmarkId: number, newOrder: number, expectedVersion?: number): Promise<{ success: boolean; currentVersion?: number }> {
+export async function updateBookmarkOrder(
+  db: ReturnType<typeof getDb>,
+  bookmarkId: number,
+  newOrder: number,
+  expectedVersion?: number
+): Promise<{ success: boolean; currentVersion?: number }> {
   // バージョンチェックが有効な場合、現在のバージョンを確認
   if (expectedVersion !== undefined) {
-    const current = await db.select().from(bookmarks).where(eq(bookmarks.id, bookmarkId)).limit(1);
+    const current = await db
+      .select()
+      .from(bookmarks)
+      .where(eq(bookmarks.id, bookmarkId))
+      .limit(1);
     if (current.length === 0) {
       return { success: false };
     }
@@ -207,10 +242,19 @@ export async function updateBookmarkOrder(db: ReturnType<typeof getDb>, bookmark
 /**
  * カテゴリの表示順序を更新（楽観的ロック付き）
  */
-export async function updateCategoryOrder(db: ReturnType<typeof getDb>, categoryId: number, newOrder: number, expectedVersion?: number): Promise<{ success: boolean; currentVersion?: number }> {
+export async function updateCategoryOrder(
+  db: ReturnType<typeof getDb>,
+  categoryId: number,
+  newOrder: number,
+  expectedVersion?: number
+): Promise<{ success: boolean; currentVersion?: number }> {
   // バージョンチェックが有効な場合、現在のバージョンを確認
   if (expectedVersion !== undefined) {
-    const current = await db.select().from(categories).where(eq(categories.id, categoryId)).limit(1);
+    const current = await db
+      .select()
+      .from(categories)
+      .where(eq(categories.id, categoryId))
+      .limit(1);
     if (current.length === 0) {
       return { success: false };
     }

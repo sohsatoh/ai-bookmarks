@@ -15,7 +15,9 @@ let channel: BroadcastChannel | null = null;
 /**
  * Broadcast Channelを初期化
  */
-export function initBroadcastChannel(onMessage: (message: BroadcastMessage) => void): void {
+export function initBroadcastChannel(
+  onMessage: (message: BroadcastMessage) => void
+): void {
   if (typeof window === "undefined" || !("BroadcastChannel" in window)) {
     console.warn("Broadcast Channel API is not supported");
     return;

@@ -27,7 +27,8 @@ export const AI_CONFIG = {
 // ==================================================
 export const SCRAPER_CONFIG = {
   /** User-Agent文字列 */
-  USER_AGENT: "Mozilla/5.0 (compatible; BookmarkBot/1.0; +https://example.com/bot)" as const,
+  USER_AGENT:
+    "Mozilla/5.0 (compatible; BookmarkBot/1.0; +https://example.com/bot)" as const,
   /** フェッチタイムアウト（ミリ秒） */
   FETCH_TIMEOUT_MS: 10000,
   /** 最大コンテンツサイズ（バイト）: 5MB */

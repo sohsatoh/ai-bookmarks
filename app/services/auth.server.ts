@@ -40,6 +40,7 @@ export function createAuth(context: AppLoadContext) {
         session: schema.sessions,
         account: schema.accounts,
         verification: schema.verifications,
+        rateLimit: schema.rateLimits,
       },
     }),
 
@@ -138,7 +139,7 @@ export function createAuth(context: AppLoadContext) {
       enabled: true,
       window: 60, // 60秒のウィンドウ
       max: 10, // ウィンドウ内で10リクエスト
-      storage: "database", // D1に保存
+      storage: "database", // D1に保存（Workersのステートレス環境で確実に機能）
     },
 
     // クッキー名のカスタマイズ（フィンガープリンティング対策）

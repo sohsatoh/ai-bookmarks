@@ -74,6 +74,13 @@ export const verifications = sqliteTable("verification", {
     .$defaultFn(() => new Date()),
 });
 
+// レート制限テーブル（Better Auth用 - ブルートフォース攻撃対策）
+export const rateLimits = sqliteTable("rate_limit", {
+  key: text("key").primaryKey(),
+  count: integer("count").notNull(),
+  lastRequest: integer("last_request", { mode: "timestamp" }).notNull(),
+});
+
 // カテゴリテーブル（大カテゴリ・小カテゴリを統合）
 export const categories = sqliteTable("categories", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -139,3 +146,5 @@ export type Account = typeof accounts.$inferSelect;
 export type NewAccount = typeof accounts.$inferInsert;
 export type Verification = typeof verifications.$inferSelect;
 export type NewVerification = typeof verifications.$inferInsert;
+export type RateLimit = typeof rateLimits.$inferSelect;
+export type NewRateLimit = typeof rateLimits.$inferInsert;

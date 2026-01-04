@@ -8,8 +8,6 @@
 
 import { createAuthClient } from "better-auth/client";
 
-let _authClient: ReturnType<typeof createAuthClient> | null = null;
-
 /**
  * Better Auth クライアントインスタンスを取得
  * 初回アクセス時に初期化され、以降はキャッシュされたインスタンスを返します
@@ -25,27 +23,18 @@ export function getAuthClient() {
     );
   }
 
-  // 既に初期化済みの場合はキャッシュを返す
-  if (_authClient) {
-    return _authClient;
-  }
-
-  // 初回初期化
-  _authClient = createAuthClient({
+  return createAuthClient({
     baseURL: window.location.origin,
   });
-
-  return _authClient;
 }
 
 /**
- * 後方互換性のため、従来の authClient エクスポートを維持
- * ただし、アクセス時に遅延初期化される Proxy を返す
+ * デフォルトエクスポート: getAuthClient()を呼び出して使用
+ * 例: const client = getAuthClient(); await client.linkSocial({ ... });
  */
-export const authClient = new Proxy({} as ReturnType<typeof createAuthClient>, {
-  get(_target, prop) {
+export const authClient = {
+  linkSocial: async (options: { provider: string; callbackURL?: string }) => {
     const client = getAuthClient();
-    const value = client[prop as keyof typeof client];
-    return typeof value === "function" ? value.bind(client) : value;
+    return await client.linkSocial(options);
   },
-});
+};

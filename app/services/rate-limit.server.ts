@@ -212,10 +212,30 @@ export function cleanupRateLimitStore(): void {
   }
 }
 
+// クリーンアップが最後に実行された時刻
+let lastCleanupTime = 0;
+
+/**
+ * 必要に応じてクリーンアップを実行（リクエストごとに呼び出す）
+ * Cloudflare WorkersではグローバルスコープでsetInterval()を使用できないため、
+ * リクエストごとにクリーンアップの必要性をチェックします
+ */
+function maybeCleanup(): void {
+  const now = Date.now();
+  // 最後のクリーンアップから5分以上経過している場合のみ実行
+  if (now - lastCleanupTime > RATE_LIMIT_CONFIG.CLEANUP_INTERVAL_MS) {
+    cleanupRateLimitStore();
+    lastCleanupTime = now;
+  }
+}
+
 /**
  * IPアドレスを取得（Cloudflare環境に対応）
  */
 export function getClientIp(request: Request): string {
+  // リクエストごとにクリーンアップをチェック
+  maybeCleanup();
+
   // Cloudflareのヘッダーから取得
   const cfConnectingIp = request.headers.get("CF-Connecting-IP");
   if (cfConnectingIp) {
@@ -224,9 +244,4 @@ export function getClientIp(request: Request): string {
 
   // フォールバック
   return "unknown";
-}
-
-// 定期的なクリーンアップ（5分ごと）
-if (typeof setInterval !== "undefined") {
-  setInterval(cleanupRateLimitStore, RATE_LIMIT_CONFIG.CLEANUP_INTERVAL_MS);
 }

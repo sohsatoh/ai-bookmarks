@@ -7,11 +7,7 @@ import {
 } from "react-router";
 import { useEffect, useState, useRef } from "react";
 import type { Route } from "./+types/home";
-import {
-  getDb,
-  getAllBookmarks,
-  getAllCategories,
-} from "~/services/db.server";
+import { getDb, getAllBookmarks, getAllCategories } from "~/services/db.server";
 import {
   initBroadcastChannel,
   broadcast,
@@ -62,7 +58,7 @@ export async function loader({ context, request }: Route.LoaderArgs) {
   // 認証チェック
   const session = await getSession(request, context);
   if (!session?.user) {
-    return redirect("/login");
+    return redirect("/");
   }
 
   const db = getDb(context.cloudflare.env.DB);
@@ -160,7 +156,12 @@ export async function action({ request, context }: Route.ActionArgs) {
     return handleEdit(formData, db, session.user.id);
   }
   if (intent === "refresh") {
-    return handleRefresh(formData, db, session.user.id, context.cloudflare.env.AI);
+    return handleRefresh(
+      formData,
+      db,
+      session.user.id,
+      context.cloudflare.env.AI
+    );
   }
 
   // バッチ系アクション（admin権限必須）
@@ -168,7 +169,11 @@ export async function action({ request, context }: Route.ActionArgs) {
     if (!hasAdminRole(session)) {
       return Response.json({ error: "管理者権限が必要です" }, { status: 403 });
     }
-    return handleRefreshAll(db, context.cloudflare.env.AI, context.cloudflare.ctx);
+    return handleRefreshAll(
+      db,
+      context.cloudflare.env.AI,
+      context.cloudflare.ctx
+    );
   }
   if (intent === "reorderBookmarks") {
     if (!hasAdminRole(session)) {
@@ -338,8 +343,16 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
 
       // エラー時や競合時は楽観的stateをリセット
       const hasError = "error" in actionData;
-      const hasToast = "toast" in actionData;
-      const hasWarningToast = hasToast && "type" in actionData.toast && actionData.toast.type === "warning";
+      const hasToast =
+        "toast" in actionData &&
+        actionData.toast !== null &&
+        typeof actionData.toast === "object";
+      const hasWarningToast =
+        hasToast &&
+        actionData.toast !== null &&
+        typeof actionData.toast === "object" &&
+        "type" in actionData.toast &&
+        actionData.toast.type === "warning";
       if (hasError || hasWarningToast) {
         setOptimisticBookmarks(loaderData.bookmarksByCategory);
       }
@@ -352,11 +365,12 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
       // 結果トーストを表示
       if (hasToast && actionData.toast) {
         const toastId = Date.now().toString();
+        const toast = actionData.toast as ToastMessage;
         setToasts((prev) => [
           ...prev,
           {
+            ...toast,
             id: toastId,
-            ...actionData.toast,
           },
         ]);
       }
@@ -369,10 +383,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
             type: "bookmark-added",
             bookmarkId: actionData.bookmarkId as number,
           });
-        } else if (
-          intent === "delete" &&
-          "bookmarkId" in actionData
-        ) {
+        } else if (intent === "delete" && "bookmarkId" in actionData) {
           broadcast({
             type: "bookmark-deleted",
             bookmarkId: actionData.bookmarkId as number,
@@ -413,7 +424,8 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
         }
 
         // 処理中の場合、カウントを増やして定期リフレッシュを開始
-        const processing = "processing" in actionData ? actionData.processing : false;
+        const processing =
+          "processing" in actionData ? actionData.processing : false;
         if (processing) {
           setProcessingCount((prev) => prev + 1);
 

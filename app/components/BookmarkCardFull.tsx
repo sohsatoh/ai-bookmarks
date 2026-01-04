@@ -73,9 +73,7 @@ export const BookmarkCardFull: React.FC<BookmarkCardFullProps> = ({
         draggable
         onDragStart={() => onDragStart("bookmark", bookmark.id, index)}
         onDragOver={(e) => onDragOver(e, "bookmark", bookmark.id)}
-        onDrop={(e) =>
-          onDrop(e, "bookmark", bookmark.id, index, categoryId)
-        }
+        onDrop={(e) => onDrop(e, "bookmark", bookmark.id, index, categoryId)}
         onDragEnd={onDragEnd}
         className={`group relative bg-white dark:bg-gray-900 rounded-2xl p-5 transition-all duration-200 hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-white/5 border flex flex-col animate-scale-in ${
           bookmark.isArchived ? "opacity-60 grayscale" : ""

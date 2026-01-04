@@ -25,7 +25,10 @@ export async function action({ request, context }: Route.ActionArgs) {
     const result = await unlinkAccount(db, session.user.id, accountId);
 
     if (!result.success) {
-      return data({ error: result.error }, { status: result.error?.includes("アクセス権限") ? 403 : 400 });
+      return data(
+        { error: result.error },
+        { status: result.error?.includes("アクセス権限") ? 403 : 400 }
+      );
     }
 
     return redirect("/settings");

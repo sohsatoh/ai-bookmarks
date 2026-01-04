@@ -29,7 +29,7 @@ export function Header({ user }: HeaderProps) {
       });
 
       if (response.ok) {
-        window.location.href = "/login";
+        window.location.href = "/";
       } else {
         console.error("ログアウトに失敗しました");
       }

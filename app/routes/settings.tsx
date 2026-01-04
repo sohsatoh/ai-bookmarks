@@ -84,7 +84,7 @@ export default function Settings() {
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <div className="flex items-center gap-4 mb-8">
         <a
-          href="/"
+          href="/home"
           className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
         >
           <svg

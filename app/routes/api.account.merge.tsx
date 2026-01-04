@@ -32,7 +32,10 @@ export async function action({ request, context }: Route.ActionArgs) {
     );
 
     if (!result.success) {
-      return data({ error: result.error }, { status: result.error?.includes("見つかりません") ? 404 : 400 });
+      return data(
+        { error: result.error },
+        { status: result.error?.includes("見つかりません") ? 404 : 400 }
+      );
     }
 
     return data({

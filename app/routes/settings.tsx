@@ -17,21 +17,16 @@
 import { useLoaderData, useFetcher, data } from "react-router";
 import type { Route } from "./+types/settings";
 import { requireAuth } from "~/services/auth.server";
-import { drizzle } from "drizzle-orm/d1";
-import { eq } from "drizzle-orm";
-import { accounts } from "~/db/schema";
+import { getAccountDb, getUserAccounts } from "~/services/account.server";
 import { useState } from "react";
 import { authClient } from "~/lib/auth-client";
 
 export async function loader({ request, context }: Route.LoaderArgs) {
   const session = await requireAuth(request, context);
-  const db = drizzle(context.cloudflare.env.DB);
+  const db = getAccountDb(context);
 
-  // 現在のユーザーに紐づくアカウント一覧を取得(認可制御)
-  const userAccounts = await db
-    .select()
-    .from(accounts)
-    .where(eq(accounts.userId, session.user.id));
+  // 現在のユーザーに紐づくアカウント一覧を取得（認可制御）
+  const userAccounts = await getUserAccounts(db, session.user.id);
 
   return data({
     user: session.user,

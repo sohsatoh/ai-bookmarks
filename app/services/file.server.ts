@@ -95,17 +95,32 @@ async function uploadToR2(
     sha256Hash: string;
   }
 ): Promise<void> {
-  await r2.put(key, file, {
-    httpMetadata: {
-      contentType: metadata.mimeType,
-    },
-    customMetadata: {
-      originalFilename: metadata.originalFilename,
-      userId: metadata.userId,
-      sha256Hash: metadata.sha256Hash,
-      uploadedAt: new Date().toISOString(),
-    },
+  console.log("[R2] アップロード開始:", {
+    key,
+    fileSize: file.byteLength,
+    mimeType: metadata.mimeType,
+    originalFilename: metadata.originalFilename,
+    r2BucketType: typeof r2,
+    hasR2: !!r2,
   });
+
+  try {
+    await r2.put(key, file, {
+      httpMetadata: {
+        contentType: metadata.mimeType,
+      },
+      customMetadata: {
+        originalFilename: metadata.originalFilename,
+        userId: metadata.userId,
+        sha256Hash: metadata.sha256Hash,
+        uploadedAt: new Date().toISOString(),
+      },
+    });
+    console.log("[R2] アップロード成功:", key);
+  } catch (error) {
+    console.error("[R2] アップロードエラー:", error);
+    throw error;
+  }
 }
 
 /**
@@ -149,15 +164,30 @@ export async function uploadFile(
   const db = drizzle(context.cloudflare.env.DB, { schema });
   const r2 = context.cloudflare.env.R2 as R2Bucket;
 
+  console.log("[uploadFile] 開始:", {
+    fileName: file.name,
+    fileSize: file.size,
+    fileType: file.type,
+    userId,
+    hasR2: !!r2,
+    r2Type: typeof r2,
+  });
+
   try {
     // アップロード可能か確認
     const uploadCheck = await canUserUploadFile(userId, context);
+    console.log("[uploadFile] アップロード可否チェック:", uploadCheck);
     if (!uploadCheck.allowed) {
       return { success: false, error: uploadCheck.error };
     }
 
     // ファイル検証
     const validation = await validateFile(file);
+    console.log("[uploadFile] ファイル検証:", {
+      valid: validation.valid,
+      sanitizedFilename: validation.sanitizedFilename,
+      hasHash: !!validation.hash,
+    });
     if (
       !validation.valid ||
       !validation.sanitizedFilename ||
@@ -168,9 +198,15 @@ export async function uploadFile(
 
     // R2キー生成
     const r2Key = generateR2Key(userId, validation.sanitizedFilename);
+    console.log("[uploadFile] R2キー生成:", r2Key);
 
     // ファイル内容を取得
     const fileBuffer = await file.arrayBuffer();
+    console.log(
+      "[uploadFile] ファイルバッファ取得:",
+      fileBuffer.byteLength,
+      "bytes"
+    );
 
     // R2にアップロード
     await uploadToR2(r2, r2Key, fileBuffer, {
@@ -179,8 +215,10 @@ export async function uploadFile(
       userId,
       sha256Hash: validation.hash,
     });
+    console.log("[uploadFile] R2アップロード完了");
 
     // D1にメタデータを保存
+    console.log("[uploadFile] D1にメタデータ保存開始");
     const newFile = await db
       .insert(files)
       .values({
@@ -194,6 +232,7 @@ export async function uploadFile(
         aiAnalysisStatus: "pending",
       })
       .returning();
+    console.log("[uploadFile] D1保存完了:", newFile[0].id);
 
     // バックグラウンドでAI分析を実行（非同期、エラーは無視）
     analyzeFileContentAsync(newFile[0].id, r2Key, file.type, context).catch(
@@ -202,9 +241,11 @@ export async function uploadFile(
       }
     );
 
+    console.log("[uploadFile] 全処理完了");
     return { success: true, file: newFile[0] };
   } catch (error) {
-    console.error("ファイルアップロードエラー:", error);
+    console.error("[uploadFile] エラー:", error);
+    console.error("[uploadFile] エラー詳細:", JSON.stringify(error, null, 2));
     return { success: false, error: "ファイルのアップロードに失敗しました" };
   }
 }

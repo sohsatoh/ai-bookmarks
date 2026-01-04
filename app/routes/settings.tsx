@@ -274,8 +274,8 @@ export default function Settings() {
         </div>
       )}
 
-      {/* アカウントマージ */}
-      <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-6 mb-6">
+      {/* アカウントマージ - セキュリティ上の理由により一時的に無効化 */}
+      {/* <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-6 mb-6">
         <h2 className="text-xl font-semibold text-yellow-900 mb-4">
           別のアカウントを統合
         </h2>
@@ -311,7 +311,7 @@ export default function Settings() {
             </form>
           ))}
         </div>
-      </div>
+      </div> */
 
       {/* アカウント削除 */}
       <div className="bg-red-50 border-2 border-red-200 rounded-lg p-6">

@@ -12,7 +12,9 @@
 
 import { redirect } from "react-router";
 import type { Route } from "./+types/api.account.merge.callback";
-import { getSession, createAuth } from "~/services/auth.server";
+import { eq } from "drizzle-orm";
+import { getSession } from "~/services/auth.server";
+import * as schema from "~/db/schema";
 import {
   verifyMergeToken,
   getAccountDb,
@@ -20,52 +22,7 @@ import {
 } from "~/services/account.server";
 
 export async function loader({ request, context }: Route.LoaderArgs) {
-  const baseUrl = context.cloudflare.env.BETTER_AUTH_URL;
-  const secret = context.cloudflare.env.BETTER_AUTH_SECRET;
+  // セキュリティ上の理由により一時的に無効化
+  return redirect("/settings?error=この機能は現在利用できません");
 
-  // マージトークンをクエリパラメータから取得
-  const url = new URL(request.url);
-  const token = url.searchParams.get("token");
-  if (!token) {
-    // トークンがない場合は通常のログインとして扱う
-    return redirect("/settings");
-  }
-
-  // トークンを検証
-  const tokenPayload = await verifyMergeToken(token, secret);
-  if (!tokenPayload) {
-    // トークンが無効な場合、設定ページにリダイレクト
-    return redirect("/settings?error=merge_token_invalid");
-  }
-
-  // 現在のセッション（OAuth認証後のセッション）を取得
-  const currentSession = await getSession(request, context);
-  if (!currentSession) {
-    // セッションがない場合、設定ページにリダイレクト
-    return redirect("/settings?error=merge_session_invalid");
-  }
-
-  const currentUserId = currentSession.user.id;
-  const targetUserId = tokenPayload.userId;
-
-  // 同じユーザーの場合（既に連携済みのアカウントでログインした場合）
-  if (currentUserId === targetUserId) {
-    return redirect("/settings?message=already_linked");
-  }
-
-  // マージを実行（現在のユーザーをターゲットユーザーに統合）
-  const db = getAccountDb(context);
-  const result = await mergeAccountSecure(db, targetUserId, currentUserId);
-
-  if (!result.success) {
-    return redirect(`/settings?error=${encodeURIComponent(result.error || "merge_failed")}`);
-  }
-
-  // マージ成功後、ターゲットユーザーとしてセッションを再作成
-  // 現在のセッションを無効化
-  const auth = createAuth(context);
-  await auth.api.signOut({ headers: request.headers });
-
-  // 設定ページにリダイレクト（再ログインが必要）
-  return redirect("/settings?message=merge_success");
 }

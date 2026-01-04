@@ -963,55 +963,85 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
   const handleMoveCategoryUp = async (majorCategoryId: number, currentIndex: number) => {
     if (currentIndex === 0) return; // 既に一番上
     
-    const categories = [...displayBookmarks];
-    const targetIndex = currentIndex - 1;
-    
-    // 配列を並び替え
-    const [removed] = categories.splice(currentIndex, 1);
-    categories.splice(targetIndex, 0, removed);
-    
-    // 楽観的UI更新
-    setOptimisticBookmarks(categories);
-    
-    // 新しい順序を計算
-    const orders = categories.map((category, index) => ({
-      id: category.majorCategoryId,
-      order: index
-    }));
-    
-    // サーバーに送信
-    const formData = new FormData();
-    formData.append('intent', 'reorderCategories');
-    formData.append('orders', JSON.stringify(orders));
-    
-    submit(formData, { method: 'post', action: '/?index' });
+    try {
+      const categories = [...displayBookmarks];
+      const targetIndex = currentIndex - 1;
+      
+      // 配列を並び替え
+      const [removed] = categories.splice(currentIndex, 1);
+      categories.splice(targetIndex, 0, removed);
+      
+      // 楽観的UI更新
+      setOptimisticBookmarks(categories);
+      
+      // 新しい順序を計算
+      const orders = categories.map((category, index) => ({
+        id: category.majorCategoryId,
+        order: index
+      }));
+      
+      // サーバーに送信
+      const formData = new FormData();
+      formData.append('intent', 'reorderCategories');
+      formData.append('orders', JSON.stringify(orders));
+      
+      submit(formData, { method: 'post', action: '/?index' });
+    } catch (error) {
+      console.error('Move category up failed:', error);
+      // エラーが発生したら楽観的stateをリセット
+      setOptimisticBookmarks(loaderData.bookmarksByCategory);
+      
+      // エラートーストを表示
+      const toastId = Date.now().toString();
+      setToasts(prev => [...prev, {
+        id: toastId,
+        type: "error" as const,
+        title: "エラー",
+        message: "カテゴリの移動に失敗しました",
+      }]);
+    }
   };
 
   const handleMoveCategoryDown = async (majorCategoryId: number, currentIndex: number) => {
     if (currentIndex === displayBookmarks.length - 1) return; // 既に一番下
     
-    const categories = [...displayBookmarks];
-    const targetIndex = currentIndex + 1;
-    
-    // 配列を並び替え
-    const [removed] = categories.splice(currentIndex, 1);
-    categories.splice(targetIndex, 0, removed);
-    
-    // 楽観的UI更新
-    setOptimisticBookmarks(categories);
-    
-    // 新しい順序を計算
-    const orders = categories.map((category, index) => ({
-      id: category.majorCategoryId,
-      order: index
-    }));
-    
-    // サーバーに送信
-    const formData = new FormData();
-    formData.append('intent', 'reorderCategories');
-    formData.append('orders', JSON.stringify(orders));
-    
-    submit(formData, { method: 'post', action: '/?index' });
+    try {
+      const categories = [...displayBookmarks];
+      const targetIndex = currentIndex + 1;
+      
+      // 配列を並び替え
+      const [removed] = categories.splice(currentIndex, 1);
+      categories.splice(targetIndex, 0, removed);
+      
+      // 楽観的UI更新
+      setOptimisticBookmarks(categories);
+      
+      // 新しい順序を計算
+      const orders = categories.map((category, index) => ({
+        id: category.majorCategoryId,
+        order: index
+      }));
+      
+      // サーバーに送信
+      const formData = new FormData();
+      formData.append('intent', 'reorderCategories');
+      formData.append('orders', JSON.stringify(orders));
+      
+      submit(formData, { method: 'post', action: '/?index' });
+    } catch (error) {
+      console.error('Move category down failed:', error);
+      // エラーが発生したら楽観的stateをリセット
+      setOptimisticBookmarks(loaderData.bookmarksByCategory);
+      
+      // エラートーストを表示
+      const toastId = Date.now().toString();
+      setToasts(prev => [...prev, {
+        id: toastId,
+        type: "error" as const,
+        title: "エラー",
+        message: "カテゴリの移動に失敗しました",
+      }]);
+    }
   };
 
   return (

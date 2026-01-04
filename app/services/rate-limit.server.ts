@@ -123,33 +123,6 @@ export function checkCombinedRateLimit(
 }
 
 /**
- * 認証関連のレート制限チェック（ログイン、サインアップ）
- */
-export function checkAuthRateLimit(
-  ip: string,
-  userId?: string | null
-): {
-  allowed: boolean;
-  reason?: "ip" | "user";
-  resetIn: number;
-} {
-  return checkCombinedRateLimit(
-    ip,
-    userId,
-    {
-      max: RATE_LIMIT_CONFIG.AUTH_IP_MAX_REQUESTS,
-      window: RATE_LIMIT_CONFIG.AUTH_IP_WINDOW_MS,
-    },
-    userId
-      ? {
-          max: RATE_LIMIT_CONFIG.AUTH_USER_MAX_REQUESTS,
-          window: RATE_LIMIT_CONFIG.AUTH_USER_WINDOW_MS,
-        }
-      : undefined
-  );
-}
-
-/**
  * AI処理のレート制限チェック
  */
 export function checkAIRateLimit(

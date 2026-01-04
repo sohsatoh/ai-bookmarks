@@ -5,30 +5,14 @@
  * セキュリティ機能:
  * - CSRF保護（Better Authが自動処理）
  * - セキュアなOAuthフロー（PKCE使用）
- * - レート制限（IPベース：5回/5分、ユーザーベース：3回/15分）
+ * - レート制限（Better Auth内蔵）
  */
 
 import type { LoaderFunctionArgs } from "react-router";
 import { getSession } from "~/services/auth.server";
 import { redirect } from "react-router";
-import { checkAuthRateLimit, getClientIp } from "~/services/rate-limit.server";
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
-  // レート制限チェック（認証試行の制限）
-  const clientIp = getClientIp(request);
-  const rateLimit = checkAuthRateLimit(clientIp);
-
-  if (!rateLimit.allowed) {
-    const resetInSeconds = Math.ceil(rateLimit.resetIn / 1000);
-    const reason =
-      rateLimit.reason === "ip"
-        ? "このIPアドレスから"
-        : "このアカウントで";
-    throw new Response(
-      `${reason}の認証試行が多すぎます。${resetInSeconds}秒後に再試行してください。`,
-      { status: 429 }
-    );
-  }
 
   // すでにログインしている場合はホームにリダイレクト
   const session = await getSession(request, context);

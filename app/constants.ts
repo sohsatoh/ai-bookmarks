@@ -54,14 +54,6 @@ export const RATE_LIMIT_CONFIG = {
   /** クリーンアップ間隔（ミリ秒）: 5分 */
   CLEANUP_INTERVAL_MS: 5 * 60 * 1000,
 
-  // 認証関連（Better Auth内蔵のレート制限に加えて追加保護）
-  /** ログイン試行（IPベース）: 5回/5分 */
-  AUTH_IP_MAX_REQUESTS: 5,
-  AUTH_IP_WINDOW_MS: 5 * 60 * 1000,
-  /** ログイン試行（ユーザーベース）: 3回/15分 */
-  AUTH_USER_MAX_REQUESTS: 3,
-  AUTH_USER_WINDOW_MS: 15 * 60 * 1000,
-
   // AI処理関連
   /** AI処理（IPベース）: 10回/1分 */
   AI_IP_MAX_REQUESTS: 10,

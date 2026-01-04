@@ -19,7 +19,6 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "setup:env:1p": "op inject -i .env.1password -o .dev.vars",
     "setup:env": "cp .dev.vars.example .dev.vars"
   },
   "dependencies": {

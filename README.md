@@ -50,9 +50,35 @@ Better Auth認証に必要な環境変数を設定します。
 
 #### 2.3 環境変数の設定
 
-2つの方法から選択できます：
+3つの方法から選択できます：
 
-方法A: 従来の方法（.dev.varsファイル）
+方法A: 1Password Environments（推奨・最も安全）
+
+1Password Environmentsを使用すると、シークレットが安全に管理され、ディスクに保存されません。
+
+前提条件:
+- 1Password for Mac/Linuxがインストール済み
+- 1Password Developerが有効化済み
+
+セットアップ手順:
+
+1. 1Password Desktop アプリを開く
+2. Developer > View Environments を選択
+3. New environment をクリックし、`ai-bookmarks-dev`という名前で作成
+4. 環境変数を追加:
+   - `BETTER_AUTH_URL`: `http://localhost:5173`
+   - `BETTER_AUTH_SECRET`: ランダムな文字列（32文字以上推奨）
+   - `GOOGLE_CLIENT_ID`: Google OAuthのクライアントID
+   - `GOOGLE_CLIENT_SECRET`: Google OAuthのクライアントシークレット
+   - `GITHUB_CLIENT_ID`: GitHub OAuthのクライアントID
+   - `GITHUB_CLIENT_SECRET`: GitHub OAuthのクライアントシークレット
+5. Destinations タブで「Local .env file」を選択
+6. ファイルパスにプロジェクトルートの`.dev.vars`を指定
+7. Mount .env file をクリック
+
+これで、1Passwordがアクセス時に自動的に`.dev.vars`ファイルにシークレットを注入します。
+
+方法B: 従来の方法（.dev.varsファイル）
 
 ```bash
 # テンプレートをコピー
@@ -62,26 +88,6 @@ cp .dev.vars.example .dev.vars
 # または
 pnpm run setup:env
 ```
-
-方法B: 1Password CLI（推奨）
-
-1Password CLIを使用すると、シークレットを安全に管理できます。
-
-```bash
-# 1Password CLIをインストール
-brew install 1password-cli
-
-# .dev.varsを自動生成
-pnpm run setup:env:1p
-```
-
-注意: `.env.1password`ファイルには1Passwordへの参照のみが含まれており、実際のシークレットは含まれていません。事前に1Passwordに以下の項目を作成してください：
-
-- `ai-bookmarks/BETTER_AUTH_SECRET`
-- `ai-bookmarks/GOOGLE_CLIENT_ID`
-- `ai-bookmarks/GOOGLE_CLIENT_SECRET`
-- `ai-bookmarks/GITHUB_CLIENT_ID`
-- `ai-bookmarks/GITHUB_CLIENT_SECRET`
 
 本番環境用:
 

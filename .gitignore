@@ -1,6 +1,5 @@
 .DS_Store
 .env
-.env.1password
 /node_modules/
 *.tsbuildinfo
 
@@ -17,4 +16,3 @@ worker-configuration.d.ts
 
 !.dev.vars.example
 !.env.example
-!.env.1password.example

@@ -1,5 +1,10 @@
 # Cloudflare Workers用の開発環境変数
-# .dev.vars にコピーして使用してください（.gitignoreに含まれています）
+# 
+# 推奨: 1Password Environmentsを使用してこのファイルを安全に管理
+# 詳細はREADME.mdの「環境変数の設定」セクションを参照
+#
+# 代替方法: このファイルを.dev.varsにコピーして実際の値を設定
+# コマンド: cp .dev.vars.example .dev.vars
 
 # Better Auth Secret (32文字以上のランダムな文字列)
 # 生成方法: openssl rand -base64 32

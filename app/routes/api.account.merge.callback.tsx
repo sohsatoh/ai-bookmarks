@@ -12,16 +12,16 @@
 
 import { redirect } from "react-router";
 import type { Route } from "./+types/api.account.merge.callback";
-import { eq } from "drizzle-orm";
-import { getSession } from "~/services/auth.server";
-import * as schema from "~/db/schema";
-import {
-  verifyMergeToken,
-  getAccountDb,
-  mergeAccountSecure,
-} from "~/services/account.server";
+// import { eq } from "drizzle-orm";
+// import { getSession } from "~/services/auth.server";
+// import * as schema from "~/db/schema";
+// import {
+//   verifyMergeToken,
+//   getAccountDb,
+//   mergeAccountSecure,
+// } from "~/services/account.server";
 
-export async function loader({ request, context }: Route.LoaderArgs) {
+export async function loader({ request: _request, context: _context }: Route.LoaderArgs) {
   // セキュリティ上の理由により一時的に無効化
   return redirect("/settings?error=この機能は現在利用できません");
 

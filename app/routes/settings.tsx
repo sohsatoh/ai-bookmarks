@@ -311,7 +311,7 @@ export default function Settings() {
             </form>
           ))}
         </div>
-      </div> */
+      </div> */}
 
       {/* アカウント削除 */}
       <div className="bg-red-50 border-2 border-red-200 rounded-lg p-6">

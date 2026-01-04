@@ -11,7 +11,7 @@
 
 import { data } from "react-router";
 import type { Route } from "./+types/api.account.merge";
-import { requireAuth, createAuth } from "~/services/auth.server";
+import { requireAuth } from "~/services/auth.server";
 import { drizzle } from "drizzle-orm/d1";
 import { eq, and } from "drizzle-orm";
 import { accounts, users, sessions, userBookmarks } from "~/db/schema";
@@ -38,7 +38,10 @@ export async function action({ request, context }: Route.ActionArgs) {
       .select()
       .from(accounts)
       .where(
-        and(eq(accounts.providerId, provider), eq(accounts.accountId, accountId))
+        and(
+          eq(accounts.providerId, provider),
+          eq(accounts.accountId, accountId)
+        )
       )
       .limit(1);
 

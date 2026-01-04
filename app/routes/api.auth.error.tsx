@@ -5,7 +5,7 @@
  * - account_already_linked_to_different_user: アカウントマージを提案
  */
 
-import { useSearchParams, useFetcher, data, redirect } from "react-router";
+import { useSearchParams, data, redirect } from "react-router";
 import type { Route } from "./+types/api.auth.error";
 import { getSession } from "~/services/auth.server";
 
@@ -21,26 +21,9 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 export default function AuthError() {
   const [searchParams] = useSearchParams();
   const error = searchParams.get("error");
-  const fetcher = useFetcher();
 
   // アカウント連携エラーの場合
   if (error === "account_already_linked_to_different_user") {
-    const handleMerge = async () => {
-      if (
-        !confirm(
-          "このソーシャルアカウントは別のユーザーに紐づいています。\n\n" +
-            "統合すると、古いアカウントのデータがこのアカウントにマージされ、古いアカウントは削除されます。\n\n" +
-            "本当に統合しますか？"
-        )
-      ) {
-        return;
-      }
-
-      // Note: この実装ではproviderとaccountIdをクエリパラメータから取得する必要があります
-      // Better Authがこれらの情報をエラーページに渡すかどうかは不明です
-      alert("アカウント統合機能は準備中です。設定ページから古いアカウントを削除してください。");
-    };
-
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-orange-100 px-4">
         <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-2xl">
@@ -60,7 +43,9 @@ export default function AuthError() {
                 考えられる原因：
               </h2>
               <ul className="text-sm text-yellow-800 space-y-1 list-disc list-inside">
-                <li>過去に別のメールアドレスで同じソーシャルアカウントを使用した</li>
+                <li>
+                  過去に別のメールアドレスで同じソーシャルアカウントを使用した
+                </li>
                 <li>複数のアカウントを作成してしまった</li>
               </ul>
             </div>
@@ -101,16 +86,10 @@ export default function AuthError() {
       <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-2xl">
         <div className="text-center">
           <div className="text-6xl mb-4">❌</div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            認証エラー
-          </h1>
-          <p className="text-gray-600">
-            認証中にエラーが発生しました
-          </p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">認証エラー</h1>
+          <p className="text-gray-600">認証中にエラーが発生しました</p>
           {error && (
-            <p className="text-sm text-red-600 mt-2">
-              エラーコード: {error}
-            </p>
+            <p className="text-sm text-red-600 mt-2">エラーコード: {error}</p>
           )}
         </div>
 

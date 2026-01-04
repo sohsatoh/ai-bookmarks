@@ -852,8 +852,8 @@ export async function action({ request, context }: Route.ActionArgs) {
   }
 
   // 重複チェック
-  const isDuplicate = await checkDuplicateUrl(db, session.user.id, url);
-  if (isDuplicate) {
+  const duplicateCheck = await checkDuplicateUrl(db, session.user.id, url);
+  if (duplicateCheck.exists) {
     return {
       error: "このURLは既に登録されています",
     };

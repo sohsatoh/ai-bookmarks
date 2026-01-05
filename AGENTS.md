@@ -455,6 +455,37 @@ async function addBookmark(
 
 ## テストとビルド
 
+### テストコマンド
+
+```bash
+# すべてのテストを実行
+pnpm test
+
+# ウォッチモードで実行（開発時）
+pnpm run test:watch
+
+# テストUIを起動（ブラウザで確認）
+pnpm run test:ui
+
+# カバレッジ付きでテスト実行
+pnpm run test:coverage
+```
+
+### テストの種類
+
+1. ユニットテスト
+   - セキュリティ関数のテスト（XSS、SQLインジェクション、SSRF、Prompt Injection対策）
+   - ファイルセキュリティのテスト（ファイル名サニタイズ、MIMEタイプ検証、magic number検証）
+   - データベース操作ロジックのテスト（ユーザー分離、楽観的ロック、IDOR対策）
+
+2. テストファイルの配置
+   - `app/services/__tests__/security.server.test.ts`: セキュリティユーティリティのテスト
+   - `app/services/__tests__/db.server.test.ts`: データベース操作のロジックテスト
+
+3. テストフレームワーク
+   - Vitest: 高速なテストランナー（Vite統合）
+   - @vitest/ui: ブラウザベースのテストUI
+
 ### ビルドコマンド
 
 ```bash
@@ -509,6 +540,7 @@ rm -rf .wrangler/state && pnpm run db:migrate
 
 - [ ] `pnpm run format:check`でフォーマットが整っている
 - [ ] `pnpm run lint`でESLintエラーがない
+- [ ] `pnpm test`がすべて成功する
 - [ ] `pnpm run typecheck`が成功する
 - [ ] `pnpm run build`が成功する
 - [ ] 追加したコードにセキュリティ上の問題がない
@@ -701,6 +733,7 @@ npx wrangler types
 
 ## 更新履歴
 
+- 2026-01-04: 包括的なテストスイートを追加（セキュリティテスト、データベース操作テスト）、GitHub Actions CI/CDワークフロー追加、Vitest設定
 - 2026-01-04: アカウント管理機能を追加（設定ページ、連携解除、削除）、passwordフィールド削除、マイグレーション完全リセット、React Router 7パターン追加
 - 2026-01-04: Better Auth認証機能を追加、ユーザー分離を実装、新機能追加（starred、read_status、archived）
 - 2026-01-04: PrettierとESLintの設定を追加、VS Code拡張機能推奨、フォーマット・Lintルールを業界標準に設定

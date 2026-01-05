@@ -200,14 +200,29 @@ describe("機能グループ", () => {
 
 GitHub Actionsワークフロー（`.github/workflows/test.yml`）により、以下が自動実行されます：
 
+### 実行速度の最適化
+
+GitHub Actionsでは以下の最適化により、高速な実行を実現しています：
+
+1. **並列実行**: lint、format、typecheckをmatrix strategyで並列実行
+2. **concurrency設定**: 同じPRの古いワークフローを自動キャンセル
+3. **pnpmキャッシュ**: 依存関係のインストールを高速化
+4. **条件付きビルド**: ビルドチェックはPRのみ実行（mainへのpushではスキップ）
+5. **fail-fast無効**: 一部のチェックが失敗しても他のチェックを継続
+
 ### プルリクエスト時
 
-1. 依存関係のインストール
-2. 型チェック（`pnpm run typecheck`）
-3. Lintチェック（`pnpm run lint`）
-4. テスト実行（`pnpm test`）
-5. コードフォーマットチェック（`pnpm run format:check`）
-6. ビルド確認（`pnpm run build`）
+1. **quality-checks**（並列実行）:
+   - Lintチェック
+   - フォーマットチェック
+   - 型チェック
+2. **test**（独立実行）:
+   - テスト実行（96テスト）
+   - カバレッジレポート生成
+3. **build**（quality-checks、test完了後）:
+   - ビルド確認
+4. **test-summary**（全ジョブ完了後）:
+   - テスト結果のサマリー表示
 
 ### ブランチマージの条件
 
@@ -215,6 +230,13 @@ GitHub Actionsワークフロー（`.github/workflows/test.yml`）により、�
 - Lintエラーがない（警告は許可）
 - 型チェックが成功（既存のエラーを除く）
 - ビルドが成功
+
+### 実行時間の目安
+
+- **quality-checks**: 約1-2分（並列実行）
+- **test**: 約1分
+- **build**: 約2-3分
+- **合計**: 約3-5分（並列実行により短縮）
 
 ## トラブルシューティング
 

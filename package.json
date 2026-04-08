@@ -40,7 +40,7 @@
     "@types/react-dom": "^19.1.9",
     "@types/sanitize-html": "^2.16.0",
     "drizzle-kit": "^0.31.8",
-    "drizzle-orm": "^0.45.1",
+    "drizzle-orm": "^0.45.2",
     "eslint": "^9.39.2",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
